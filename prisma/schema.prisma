@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SubscriptionStatus {
+  FREE
+  PAID
+}
+
+enum NodeLevel {
+  SUBJECT
+  TOPIC
+  SUBTOPIC
+}
+
+model User {
+  id                 String             @id @default(cuid())
+  email              String             @unique
+  name               String?
+  passwordHash       String
+  subscriptionStatus SubscriptionStatus @default(FREE)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  nodes Node[]
+}
+
+model Node {
+  id        String   @id @default(cuid())
+  userId    String
+  parentId  String?
+  title     String
+  notes     String?
+  level     NodeLevel
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent   Node?  @relation("NodeChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children Node[] @relation("NodeChildren")
+
+  @@index([userId])
+  @@index([userId, parentId])
+  @@index([userId, level])
+}

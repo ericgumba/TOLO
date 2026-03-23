@@ -131,9 +131,13 @@ export async function deleteNodeAction(formData: FormData) {
     redirect("/dashboard?error=Node%20not%20found");
   }
 
-  await prisma.node.delete({
-    where: { id: node.id },
-  });
+  try {
+    await prisma.node.delete({
+      where: { id: node.id },
+    });
+  } catch {
+    redirect("/dashboard?error=Unable%20to%20delete%20node.%20Run%20migrations%20and%20try%20again");
+  }
 
   revalidatePath("/dashboard");
   redirect("/dashboard");

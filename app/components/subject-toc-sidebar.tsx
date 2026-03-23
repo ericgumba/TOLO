@@ -31,7 +31,13 @@ export function SubjectTocSidebar({ subject, activeTopicId, activeSubtopicId }: 
                   className={`text-sm font-semibold hover:text-blue-700 ${
                     activeTopicId === topic.id ? "text-blue-700" : "text-slate-900"
                   }`}
-                  href={activeTopicId === topic.id ? `/subject/${subject.id}` : `/subject/${subject.id}/topic/${topic.id}`}
+                  href={
+                    activeTopicId === topic.id
+                      ? activeSubtopicId
+                        ? `/subject/${subject.id}/topic/${topic.id}`
+                        : `/subject/${subject.id}`
+                      : `/subject/${subject.id}/topic/${topic.id}`
+                  }
                 >
                   {topic.title}
                 </Link>

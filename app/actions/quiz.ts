@@ -48,8 +48,15 @@ export async function submitQuestionAttemptAction(formData: FormData) {
       };
     }
   ).questionAttempt;
+  const from = parsed.data.from?.startsWith("/") ? parsed.data.from : "/dashboard";
 
-  if (attemptDelegate) {
+  if (!attemptDelegate) {
+    redirect(
+      `/quiz/${question.id}?from=${encodeURIComponent(from)}&error=attempt_model_unavailable`,
+    );
+  }
+
+  try {
     await attemptDelegate.create({
       data: {
         questionId: question.id,
@@ -60,9 +67,12 @@ export async function submitQuestionAttemptAction(formData: FormData) {
         llmCorrection: scoring.correction,
       },
     });
+  } catch {
+    redirect(
+      `/quiz/${question.id}?from=${encodeURIComponent(from)}&error=attempt_save_failed`,
+    );
   }
 
   revalidatePath(`/quiz/${question.id}`);
-  const from = parsed.data.from?.startsWith("/") ? parsed.data.from : "/dashboard";
   redirect(`/quiz/${question.id}?from=${encodeURIComponent(from)}&submitted=1`);
 }

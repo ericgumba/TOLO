@@ -24,6 +24,8 @@ export async function gradeQuestionAttempt(question: string, answer: string): Pr
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_GRADING_MODEL || "gpt-4o-mini";
 
+  console.log("Grading attempt with model", model);
+
   if (!apiKey) {
     return fallbackGrade();
   }

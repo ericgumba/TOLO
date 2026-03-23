@@ -12,6 +12,7 @@ type QuizPageProps = {
   searchParams: Promise<{
     from?: string;
     submitted?: string;
+    error?: string;
   }>;
 };
 
@@ -48,6 +49,7 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
 
   const from = query.from?.startsWith("/") ? query.from : `/subject/${question.node.id}`;
   const submitted = query.submitted === "1";
+  const saveError = query.error === "attempt_model_unavailable" || query.error === "attempt_save_failed";
   const attemptDelegate = (
     prisma as unknown as {
       questionAttempt?: {
@@ -62,8 +64,17 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
     }
   ).questionAttempt;
 
-  const latestAttempt = attemptDelegate
-    ? await attemptDelegate.findFirst({
+  let latestAttempt: {
+    userAnswer: string;
+    llmScore: number;
+    llmFeedback: string;
+    llmCorrection: string;
+    answeredAt: Date;
+  } | null = null;
+
+  if (attemptDelegate) {
+    try {
+      latestAttempt = await attemptDelegate.findFirst({
         where: {
           userId: session.user.id,
           questionId: question.id,
@@ -78,8 +89,11 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
           llmCorrection: true,
           answeredAt: true,
         },
-      })
-    : null;
+      });
+    } catch {
+      latestAttempt = null;
+    }
+  }
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-6 py-10">
@@ -130,39 +144,47 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
         </form>
       </section>
 
-      {latestAttempt ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-slate-700">Feedback</p>
+      <section className="rounded-xl border border-dashed border-slate-300 bg-white p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-slate-700">LLM feedback</p>
+          {latestAttempt ? (
             <p className="text-xs text-slate-500">Latest attempt at {latestAttempt.answeredAt.toLocaleString()}</p>
-          </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Score</p>
-              <p className="mt-1 text-xl font-semibold text-slate-900">{latestAttempt.llmScore}/5</p>
+          ) : null}
+        </div>
+
+        {latestAttempt ? (
+          <>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Score</p>
+                <p className="mt-1 text-xl font-semibold text-slate-900">{latestAttempt.llmScore}/5</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Summary</p>
+                <p className="mt-1 text-sm text-slate-700">{latestAttempt.llmFeedback}</p>
+              </div>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Summary</p>
-              <p className="mt-1 text-sm text-slate-700">{latestAttempt.llmFeedback}</p>
+            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Correction</p>
+              <p className="mt-1 text-sm text-slate-700">{latestAttempt.llmCorrection}</p>
             </div>
-          </div>
-          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Correction</p>
-            <p className="mt-1 text-sm text-slate-700">{latestAttempt.llmCorrection}</p>
-          </div>
-        </section>
-      ) : (
-        <section className="rounded-xl border border-dashed border-slate-300 bg-white p-5">
-          <p className="text-sm font-semibold text-slate-700">No attempts yet</p>
+          </>
+        ) : (
           <p className="mt-2 text-sm text-slate-500">
-            Submit an answer to generate and store a scored attempt for this question.
+            Submit an answer to generate and store LLM feedback for this question.
           </p>
-        </section>
-      )}
+        )}
+      </section>
 
       {submitted ? (
         <section className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
           Attempt saved.
+        </section>
+      ) : null}
+
+      {saveError ? (
+        <section className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          Could not save attempt. Run latest Prisma migration and retry.
         </section>
       ) : null}
     </main>

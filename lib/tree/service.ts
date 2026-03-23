@@ -6,7 +6,6 @@ import { type TreeCountSnapshot } from "@/lib/tree/rules";
 export type TreeNode = {
   id: string;
   title: string;
-  notes: string | null;
   level: NodeLevel;
   parentId: string | null;
   children: TreeNode[];
@@ -24,7 +23,6 @@ export async function getTreeForUser(userId: string): Promise<TreeNode[]> {
     map.set(node.id, {
       id: node.id,
       title: node.title,
-      notes: node.notes,
       level: node.level,
       parentId: node.parentId,
       children: [],
@@ -122,4 +120,68 @@ export async function getUserSubscription(userId: string): Promise<SubscriptionS
   });
 
   return user?.subscriptionStatus ?? SubscriptionStatus.FREE;
+}
+
+export async function getSubjectTreeForUser(subjectId: string, userId: string): Promise<TreeNode | null> {
+  const nodes = await prisma.node.findMany({
+    where: {
+      userId,
+    },
+    orderBy: [{ createdAt: "asc" }],
+    select: {
+      id: true,
+      title: true,
+      level: true,
+      parentId: true,
+    },
+  });
+
+  const map = new Map<string, TreeNode>();
+
+  for (const node of nodes) {
+    map.set(node.id, {
+      id: node.id,
+      title: node.title,
+      level: node.level,
+      parentId: node.parentId,
+      children: [],
+    });
+  }
+
+  for (const node of map.values()) {
+    if (!node.parentId) {
+      continue;
+    }
+
+    const parent = map.get(node.parentId);
+    if (parent) {
+      parent.children.push(node);
+    }
+  }
+
+  const subject = map.get(subjectId);
+  if (!subject || subject.level !== NodeLevel.SUBJECT) {
+    return null;
+  }
+
+  return subject;
+}
+
+export async function getTopicTreeForUser(
+  subjectId: string,
+  topicId: string,
+  userId: string,
+): Promise<{ subject: TreeNode; topic: TreeNode } | null> {
+  const subject = await getSubjectTreeForUser(subjectId, userId);
+
+  if (!subject) {
+    return null;
+  }
+
+  const topic = subject.children.find((item) => item.id === topicId);
+  if (!topic) {
+    return null;
+  }
+
+  return { subject, topic };
 }

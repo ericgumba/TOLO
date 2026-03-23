@@ -26,7 +26,7 @@ export function DashboardSidebar({ subjects }: DashboardSidebarProps) {
             <Link
               key={subject.id}
               className="rounded-xl border border-slate-200 px-3 py-3 transition hover:border-blue-200 hover:bg-blue-50/60"
-              href={`#subject-${subject.id}`}
+              href={`/subject/${subject.id}`}
             >
               <div className="text-sm font-semibold text-slate-900">{subject.title}</div>
               <div className="mt-1 text-xs text-slate-500">{getTopicCount(subject)} topics</div>

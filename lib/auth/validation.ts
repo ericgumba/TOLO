@@ -13,16 +13,26 @@ export const loginSchema = z.object({
 
 export const nodeCreateSchema = z.object({
   title: z.string().trim().min(1).max(120),
-  notes: z.string().max(5000).optional(),
   parentId: z.string().cuid().optional(),
+  returnTo: z.string().startsWith("/").optional(),
 });
 
 export const nodeUpdateSchema = z.object({
   nodeId: z.string().cuid(),
   title: z.string().trim().min(1).max(120),
-  notes: z.string().max(5000).optional(),
 });
-
 export const nodeDeleteSchema = z.object({
   nodeId: z.string().cuid(),
+});
+
+export const questionCreateSchema = z.object({
+  nodeId: z.string().cuid(),
+  body: z.string().trim().min(1).max(1000),
+  returnTo: z.string().startsWith("/").optional(),
+});
+
+export const questionAttemptCreateSchema = z.object({
+  questionId: z.string().cuid(),
+  answer: z.string().trim().min(1).max(4000),
+  from: z.string().startsWith("/").optional(),
 });

@@ -10,11 +10,6 @@ import { prisma } from "@/lib/prisma";
 import { canCreateNode, resolveChildLevel } from "@/lib/tree/rules";
 import { getNodeForUser, getTreeCountSnapshot, getUserSubscription } from "@/lib/tree/service";
 
-function sanitizeNotes(raw: string | undefined) {
-  const value = raw?.trim();
-  return value ? value : null;
-}
-
 async function requireAuthUserId() {
   const session = await auth();
 
@@ -30,8 +25,8 @@ export async function createNodeAction(formData: FormData) {
 
   const parsed = nodeCreateSchema.safeParse({
     title: formData.get("title"),
-    notes: formData.get("notes") || undefined,
     parentId: formData.get("parentId") || undefined,
+    returnTo: formData.get("returnTo") || undefined,
   });
 
   if (!parsed.success) {
@@ -77,12 +72,16 @@ export async function createNodeAction(formData: FormData) {
       userId,
       parentId: parentNode?.id ?? null,
       title: parsed.data.title,
-      notes: sanitizeNotes(parsed.data.notes),
       level: childLevel as NodeLevel,
     },
   });
 
   revalidatePath("/dashboard");
+  if (parsed.data.returnTo) {
+    revalidatePath(parsed.data.returnTo);
+    redirect(parsed.data.returnTo);
+  }
+
   redirect("/dashboard");
 }
 
@@ -92,7 +91,6 @@ export async function updateNodeAction(formData: FormData) {
   const parsed = nodeUpdateSchema.safeParse({
     nodeId: formData.get("nodeId"),
     title: formData.get("title"),
-    notes: formData.get("notes") || undefined,
   });
 
   if (!parsed.success) {
@@ -109,7 +107,6 @@ export async function updateNodeAction(formData: FormData) {
     where: { id: node.id },
     data: {
       title: parsed.data.title,
-      notes: sanitizeNotes(parsed.data.notes),
     },
   });
 

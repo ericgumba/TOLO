@@ -36,3 +36,8 @@ export const questionAttemptCreateSchema = z.object({
   answer: z.string().trim().min(1).max(4000),
   from: z.string().startsWith("/").optional(),
 });
+
+export const questionAttemptResetSchema = z.object({
+  questionId: z.string().cuid(),
+  from: z.string().startsWith("/").optional(),
+});

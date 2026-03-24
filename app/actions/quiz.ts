@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { questionAttemptCreateSchema } from "@/lib/auth/validation";
+import { questionAttemptCreateSchema, questionAttemptResetSchema } from "@/lib/auth/validation";
 import { gradeQuestionAttempt } from "@/lib/llm/grade-question-attempt";
 import { prisma } from "@/lib/prisma";
 
@@ -75,4 +75,62 @@ export async function submitQuestionAttemptAction(formData: FormData) {
 
   revalidatePath(`/quiz/${question.id}`);
   redirect(`/quiz/${question.id}?from=${encodeURIComponent(from)}&submitted=1`);
+}
+
+export async function resetQuestionAttemptAction(formData: FormData) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const parsed = questionAttemptResetSchema.safeParse({
+    questionId: formData.get("questionId"),
+    from: formData.get("from") || undefined,
+  });
+
+  if (!parsed.success) {
+    redirect("/dashboard?error=Invalid%20quiz%20reset");
+  }
+
+  const question = await prisma.question.findFirst({
+    where: {
+      id: parsed.data.questionId,
+      userId: session.user.id,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!question) {
+    redirect("/dashboard?error=Question%20not%20found");
+  }
+
+  const attemptDelegate = (
+    prisma as unknown as {
+      questionAttempt?: {
+        deleteMany: (args: unknown) => Promise<unknown>;
+      };
+    }
+  ).questionAttempt;
+  const from = parsed.data.from?.startsWith("/") ? parsed.data.from : "/dashboard";
+
+  if (!attemptDelegate) {
+    redirect(`/quiz/${question.id}?from=${encodeURIComponent(from)}&error=attempt_model_unavailable`);
+  }
+
+  try {
+    await attemptDelegate.deleteMany({
+      where: {
+        questionId: question.id,
+        userId: session.user.id,
+      },
+    });
+  } catch {
+    redirect(`/quiz/${question.id}?from=${encodeURIComponent(from)}&error=attempt_reset_failed`);
+  }
+
+  revalidatePath(`/quiz/${question.id}`);
+  redirect(`/quiz/${question.id}?from=${encodeURIComponent(from)}&reset=1`);
 }

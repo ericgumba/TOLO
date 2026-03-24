@@ -9,7 +9,7 @@ function clampScore(value: unknown): number {
   if (!Number.isFinite(numeric)) {
     return 1;
   }
-  return Math.max(1, Math.min(5, Math.round(numeric)));
+  return Math.max(1, Math.min(100, Math.round(numeric)));
 }
 
 function fallbackGrade(): GradeResult {
@@ -45,7 +45,7 @@ export async function gradeQuestionAttempt(question: string, answer: string): Pr
           {
             role: "system",
             content:
-              "You are grading a student's free-form answer. Return strict JSON with keys: score, feedback, correction. score must be integer 1..5.",
+              "You are grading a student's free-form answer. Return strict JSON with keys: score, feedback, correction. score must be integer 1..100.",
           },
           {
             role: "user",

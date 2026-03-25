@@ -11,11 +11,7 @@ type FeedbackCardProps = {
 
 export function FeedbackCard({ feedback }: FeedbackCardProps) {
   if (!feedback) {
-    return (
-      <section className="rounded-xl border border-dashed border-slate-300 bg-white p-5">
-        <p className="text-sm font-semibold text-slate-700">LLM feedback</p>
-      </section>
-    );
+    return null;
   }
 
   return (
@@ -30,17 +26,13 @@ export function FeedbackCard({ feedback }: FeedbackCardProps) {
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Score</p>
-          <p className="mt-1 text-xl font-semibold text-slate-900">{feedback.llmScore}/5</p>
+          <p className="mt-1 text-xl font-semibold text-slate-900">{feedback.llmScore}/100</p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Summary</p>
           <p className="mt-1 text-sm text-slate-700">{feedback.llmFeedback}</p>
         </div>
-      </div>
-      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Follow-up question</p>
-        <p className="mt-1 text-sm text-slate-700">{feedback.llmCorrection}</p>
-      </div>
+      </div> 
     </section>
   );
 }

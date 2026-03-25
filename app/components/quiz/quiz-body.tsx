@@ -7,7 +7,6 @@ type QuizBodyProps = {
   questionId: string;
   questionBody: string;
   from: string;
-  canReset: boolean;
   attempts: Array<{
     userAnswer: string;
     llmScore: number;
@@ -16,14 +15,14 @@ type QuizBodyProps = {
     answeredAt: Date;
   }>;
 };
-export function QuizBody({ questionId, questionBody, from, canReset, attempts }: QuizBodyProps) {
+export function QuizBody({ questionId, questionBody, from, attempts }: QuizBodyProps) {
   const latestAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
 
   return (
     <div className="flex flex-col gap-6">
       {attempts.map((attempt, index) => (
         <div key={`${attempt.answeredAt.toISOString()}-${index}`} className="flex flex-col gap-4">
-          <QuestionCard questionId={questionId} questionBody={questionBody} from={from} canReset={false} />
+          <QuestionCard questionId={questionId} questionBody={questionBody} from={from} canReset={index === 0} />
           <AnswerCard questionId={questionId} from={from} answer={attempt.userAnswer} editable={false} />
           <FeedbackCard
             feedback={{
@@ -37,7 +36,7 @@ export function QuizBody({ questionId, questionBody, from, canReset, attempts }:
       ))}
 
       <div className="flex flex-col gap-4">
-        <QuestionCard questionId={questionId} questionBody={questionBody} from={from} canReset={canReset} />
+        <QuestionCard questionId={questionId} questionBody={questionBody} from={from} canReset={false} />
         <AnswerCard
           questionId={questionId}
           from={from}

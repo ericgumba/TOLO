@@ -33,6 +33,14 @@ export async function submitQuestionAttemptAction(formData: FormData) {
     select: {
       id: true,
       body: true,
+      node: {
+        select: {
+          parentId: true,
+          id: true,
+          title: true,
+          level: true,
+        },
+      },
     },
   });
 
@@ -40,7 +48,48 @@ export async function submitQuestionAttemptAction(formData: FormData) {
     redirect("/dashboard?error=Question%20not%20found");
   }
 
-  const scoring = await gradeQuestionAttempt(question.body, parsed.data.answer);
+  const context: Array<{
+    id: string;
+    title: string;
+    level: "SUBJECT" | "TOPIC" | "SUBTOPIC";
+  }> = [];
+
+  let currentParentId = question.node.parentId;
+
+  while (currentParentId) {
+    const parentNode = await prisma.node.findFirst({
+      where: {
+        id: currentParentId,
+        userId: session.user.id,
+      },
+      select: {
+        id: true,
+        title: true,
+        level: true,
+        parentId: true,
+      },
+    });
+
+    if (!parentNode) {
+      break;
+    }
+
+    context.unshift({
+      id: parentNode.id,
+      title: parentNode.title,
+      level: parentNode.level,
+    });
+
+    currentParentId = parentNode.parentId;
+  }
+
+  context.push({
+    id: question.node.id,
+    title: question.node.title,
+    level: question.node.level,
+  });
+
+  const scoring = await gradeQuestionAttempt(question.body, parsed.data.answer, context);
   const attemptDelegate = (
     prisma as unknown as {
       questionAttempt?: {

@@ -104,7 +104,7 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-6 py-10">
       <QuizHeader from={from} nodeTitle={question.node.title} nodeLevel={question.node.level} />
-      <QuizBody questionId={question.id} questionBody={question.body} from={from} canReset={attempts.length > 0} attempts={attempts} />
+      <QuizBody questionId={question.id} questionBody={question.body} from={from} attempts={attempts} />
       <StatusBanners submitted={submitted} reset={reset} saveError={saveError} />
     </main>
   );

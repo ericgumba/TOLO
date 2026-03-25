@@ -4,6 +4,12 @@ type GradeResult = {
   correction: string;
 };
 
+type QuestionContextNode = {
+  id: string;
+  title: string;
+  level: "SUBJECT" | "TOPIC" | "SUBTOPIC";
+};
+
 function clampScore(value: unknown): number {
   const numeric = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(numeric)) {
@@ -20,7 +26,11 @@ function fallbackGrade(): GradeResult {
   };
 }
 
-export async function gradeQuestionAttempt(question: string, answer: string): Promise<GradeResult> {
+export async function gradeQuestionAttempt(
+  question: string,
+  answer: string,
+  context: QuestionContextNode[] = [],
+): Promise<GradeResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_GRADING_MODEL || "gpt-4o-mini";
 
@@ -31,6 +41,11 @@ export async function gradeQuestionAttempt(question: string, answer: string): Pr
   }
 
   try {
+    const contextText =
+      context.length > 0
+        ? context.map((node) => `${node.level}: ${node.title}`).join(" > ")
+        : "No context provided";
+
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -49,7 +64,11 @@ export async function gradeQuestionAttempt(question: string, answer: string): Pr
           },
           {
             role: "user",
-            content: `Question: ${question}\n\nStudent answer: ${answer}\n\nReturn JSON only.`,
+            content:
+              `Context path: ${contextText}\n\n` +
+              `Question: ${question}\n\n` +
+              `Student answer: ${answer}\n\n` +
+              "Return JSON only.",
           },
         ],
       }),

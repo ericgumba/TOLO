@@ -18,6 +18,11 @@ enum NodeLevel {
   SUBTOPIC
 }
 
+enum QuestionType {
+  MAIN
+  FOLLOW_UP
+}
+
 model User {
   id                 String             @id @default(cuid())
   email              String             @unique
@@ -56,15 +61,21 @@ model Question {
   id        String   @id @default(cuid())
   userId    String
   nodeId    String
+  parentQuestionId String?
+  questionType QuestionType @default(MAIN)
   body      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  node Node @relation(fields: [nodeId], references: [id], onDelete: Cascade)
-  attempts QuestionAttempt[]
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node           Node      @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  parentQuestion Question? @relation("QuestionFollowUps", fields: [parentQuestionId], references: [id], onDelete: SetNull)
+  followUps      Question[] @relation("QuestionFollowUps")
+  attempts       QuestionAttempt[]
 
   @@index([userId, nodeId])
+  @@index([userId, parentQuestionId])
+  @@index([userId, questionType])
   @@index([nodeId])
 }
 

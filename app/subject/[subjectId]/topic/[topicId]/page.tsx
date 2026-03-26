@@ -59,6 +59,7 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
       questionCount = await questionDelegate.count({
         where: {
           userId: session.user.id,
+          questionType: "MAIN",
           nodeId: {
             in: nodeIds,
           },
@@ -67,6 +68,7 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
       nodeQuestions = await questionDelegate.findMany({
         where: {
           userId: session.user.id,
+          questionType: "MAIN",
           nodeId: activeNodeId,
         },
         orderBy: {
@@ -162,13 +164,13 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Create Question</h2>
             <form action={createQuestionAction} className="mt-3 flex flex-col gap-2 sm:max-w-xl">
-              <input type="hidden" name="nodeId" value={topic.id} />
+              <input type="hidden" name="nodeId" value={activeNodeId} />
               <input type="hidden" name="returnTo" value={routePath} />
               <textarea
                 required
                 name="body"
                 className="min-h-24 rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                placeholder="Write a question for this topic"
+                placeholder={selectedSubtopic ? "Write a question for this subtopic" : "Write a question for this topic"}
               />
               <button
                 type="submit"

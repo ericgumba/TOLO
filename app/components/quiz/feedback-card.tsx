@@ -29,8 +29,12 @@ export function FeedbackCard({ feedback }: FeedbackCardProps) {
           <p className="mt-1 text-xl font-semibold text-slate-900">{feedback.llmScore}/100</p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Summary</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Feedback</p>
           <p className="mt-1 text-sm text-slate-700">{feedback.llmFeedback}</p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Correction</p>
+          <p className="mt-1 text-sm text-slate-700">{feedback.llmCorrection}</p>
         </div>
       </div> 
     </section>

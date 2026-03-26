@@ -33,6 +33,7 @@ export async function submitQuestionAttemptAction(formData: FormData) {
     select: {
       id: true,
       body: true,
+      nodeId: true,
       node: {
         select: {
           parentId: true,
@@ -105,8 +106,10 @@ export async function submitQuestionAttemptAction(formData: FormData) {
     );
   }
 
+  let nextQuestionId = question.id;
+
   try {
-    await attemptDelegate.create({
+    const createdAttempt = attemptDelegate.create({
       data: {
         questionId: question.id,
         userId: session.user.id,
@@ -116,6 +119,25 @@ export async function submitQuestionAttemptAction(formData: FormData) {
         llmCorrection: scoring.correction,
       },
     });
+
+    console.log("ERICGUMBA Created attempt for question", question.id, "with score", scoring.score);
+    console.log("ERICGUMBA Created follow-up question for question", question.id, "with body", scoring.followupQuestion);
+
+    const createdFollowUpQuestion = prisma.question.create({
+      data: {
+        userId: session.user.id,
+        nodeId: question.nodeId,
+        parentQuestionId: question.id,
+        body: scoring.followupQuestion,
+        questionType: "FOLLOW_UP",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const [, followUpQuestion] = await Promise.all([createdAttempt, createdFollowUpQuestion]);
+    nextQuestionId = followUpQuestion.id;
   } catch {
     redirect(
       `/quiz/${question.id}?from=${encodeURIComponent(from)}&error=attempt_save_failed`,
@@ -123,7 +145,8 @@ export async function submitQuestionAttemptAction(formData: FormData) {
   }
 
   revalidatePath(`/quiz/${question.id}`);
-  redirect(`/quiz/${question.id}?from=${encodeURIComponent(from)}&submitted=1`);
+  revalidatePath(`/quiz/${nextQuestionId}`);
+  redirect(`/quiz/${nextQuestionId}?from=${encodeURIComponent(from)}&submitted=1`);
 }
 
 export async function resetQuestionAttemptAction(formData: FormData) {

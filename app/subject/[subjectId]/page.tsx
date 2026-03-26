@@ -46,6 +46,7 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
       questionCount = await questionDelegate.count({
         where: {
           userId: session.user.id,
+          questionType: "MAIN",
           nodeId: {
             in: nodeIds,
           },
@@ -54,6 +55,7 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
       nodeQuestions = await questionDelegate.findMany({
         where: {
           userId: session.user.id,
+          questionType: "MAIN",
           nodeId: subject.id,
         },
         orderBy: {

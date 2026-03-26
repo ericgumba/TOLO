@@ -43,6 +43,7 @@ export async function createQuestionAction(formData: FormData) {
       userId: session.user.id,
       nodeId: parsed.data.nodeId,
       body: parsed.data.body,
+      questionType: "MAIN",
     },
   });
 

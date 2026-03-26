@@ -2,6 +2,7 @@ type GradeResult = {
   score: number;
   feedback: string;
   correction: string;
+  followupQuestion: string;
 };
 
 type QuestionContextNode = {
@@ -23,6 +24,7 @@ function fallbackGrade(): GradeResult {
     score: 1,
     feedback: "LLM grading is unavailable.",
     correction: "No correction generated because LLM grading is unavailable.",
+    followupQuestion: "What key concept from this question is your answer missing?",
   };
 }
 
@@ -60,7 +62,7 @@ export async function gradeQuestionAttempt(
           {
             role: "system",
             content:
-              "You are grading a student's free-form answer. Return strict JSON with keys: score, feedback, correction. score must be integer 1..100.",
+              "You are grading a student's free-form answer. Return strict JSON with keys: score, feedback, correction, followupQuestion. score must be integer 1..100. followupQuestion must be one concise question.",
           },
           {
             role: "user",
@@ -95,12 +97,17 @@ export async function gradeQuestionAttempt(
       score?: unknown;
       feedback?: unknown;
       correction?: unknown;
+      followupQuestion?: unknown;
     };
 
     return {
       score: clampScore(parsed.score),
       feedback: typeof parsed.feedback === "string" ? parsed.feedback : "Feedback unavailable.",
       correction: typeof parsed.correction === "string" ? parsed.correction : "Correction unavailable.",
+      followupQuestion:
+        typeof parsed.followupQuestion === "string" && parsed.followupQuestion.trim().length > 0
+          ? parsed.followupQuestion.trim()
+          : "Can you explain the key concept your answer is still missing?",
     };
   } catch {
     return fallbackGrade();

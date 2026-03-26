@@ -4,11 +4,10 @@ type AnswerCardProps = {
   questionId: string;
   from: string;
   answer?: string;
-  prompt?: string;
   editable: boolean;
 };
 
-export function AnswerCard({ questionId, from, answer, prompt, editable }: AnswerCardProps) {
+export function AnswerCard({ questionId, from, answer, editable }: AnswerCardProps) {
   if (!editable) {
     return (
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -23,15 +22,12 @@ export function AnswerCard({ questionId, from, answer, prompt, editable }: Answe
       <form action={submitQuestionAttemptAction} className="flex flex-col gap-3">
         <input type="hidden" name="questionId" value={questionId} />
         <input type="hidden" name="from" value={from} />
-        <label htmlFor="answer" className="text-sm font-semibold text-slate-900">
-          {prompt ? "Answer follow-up question" : "Your answer"}
-        </label>
-        {prompt ? <p className="text-sm text-slate-600">{prompt}</p> : null}
+        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Answer</p> 
         <textarea
           id="answer"
           name="answer"
           className="min-h-36 rounded-md border border-zinc-300 px-3 py-2 text-sm"
-          placeholder={prompt ? "Write your follow-up answer" : "Write your answer in free-form text"}
+          placeholder= "Write your answer here" 
           required
         />
         <div>

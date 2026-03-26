@@ -77,34 +77,65 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
     llmCorrection: string;
     answeredAt: Date;
   }> = [];
+  let followUpQuestions: Array<{
+    id: string;
+    body: string;
+    createdAt: Date;
+  }> = [];
 
   if (attemptDelegate) {
     try {
-      attempts = await attemptDelegate.findMany({
-        where: {
-          userId: session.user.id,
-          questionId: question.id,
-        },
-        orderBy: {
-          answeredAt: "asc",
-        },
-        select: {
-          userAnswer: true,
-          llmScore: true,
-          llmFeedback: true,
-          llmCorrection: true,
-          answeredAt: true,
-        },
-      });
+      const [attemptRows, followUpRows] = await Promise.all([
+        attemptDelegate.findMany({
+          where: {
+            userId: session.user.id,
+            questionId: question.id,
+          },
+          orderBy: {
+            answeredAt: "asc",
+          },
+          select: {
+            userAnswer: true,
+            llmScore: true,
+            llmFeedback: true,
+            llmCorrection: true,
+            answeredAt: true,
+          },
+        }),
+        prisma.question.findMany({
+          where: {
+            userId: session.user.id,
+            parentQuestionId: question.id,
+            questionType: "FOLLOW_UP",
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+          select: {
+            id: true,
+            body: true,
+            createdAt: true,
+          },
+        }),
+      ]);
+      attempts = attemptRows;
+      followUpQuestions = followUpRows;
     } catch {
       attempts = [];
+      followUpQuestions = [];
     }
   }
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-6 py-10">
       <QuizHeader from={from} nodeTitle={question.node.title} nodeLevel={question.node.level} />
-      <QuizBody questionId={question.id} questionBody={question.body} from={from} attempts={attempts} />
+      <QuizBody
+        questionId={question.id}
+        questionBody={question.body}
+        from={from}
+        attempts={attempts}
+        followUpQuestions={followUpQuestions}
+      />
       <StatusBanners submitted={submitted} reset={reset} saveError={saveError} />
     </main>
   );

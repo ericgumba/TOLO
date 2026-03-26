@@ -8,6 +8,38 @@ import { questionAttemptCreateSchema, questionAttemptResetSchema } from "@/lib/a
 import { gradeQuestionAttempt } from "@/lib/llm/grade-question-attempt";
 import { prisma } from "@/lib/prisma";
 
+function normalizeQuestion(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildUniqueFollowUpQuestion(candidate: string, existingQuestions: string[], currentQuestion: string): string {
+  const normalizedExisting = new Set(existingQuestions.map(normalizeQuestion));
+  const normalizedCandidate = normalizeQuestion(candidate);
+  if (normalizedCandidate.length > 0 && !normalizedExisting.has(normalizedCandidate)) {
+    return candidate.trim();
+  }
+
+  const base = currentQuestion.replace(/\?+$/, "").trim();
+  const fallbackCandidates = [
+    `What is one concrete example that clarifies: ${base}?`,
+    `What is the most important detail you have not yet explained about: ${base}?`,
+    `How would you compare two key aspects related to: ${base}?`,
+  ];
+
+  for (const fallback of fallbackCandidates) {
+    const normalizedFallback = normalizeQuestion(fallback);
+    if (!normalizedExisting.has(normalizedFallback)) {
+      return fallback;
+    }
+  }
+
+  return `What is one additional missing detail about this topic? (${existingQuestions.length + 1})`;
+}
+
 export async function submitQuestionAttemptAction(formData: FormData) {
   const session = await auth();
 
@@ -90,7 +122,49 @@ export async function submitQuestionAttemptAction(formData: FormData) {
     level: question.node.level,
   });
 
-  const scoring = await gradeQuestionAttempt(question.body, parsed.data.answer, context);
+  const [existingAttempts, existingFollowUpQuestions] = await Promise.all([
+    prisma.questionAttempt.findMany({
+      where: {
+        questionId: question.id,
+        userId: session.user.id,
+      },
+      orderBy: {
+        answeredAt: "asc",
+      },
+      select: {
+        userAnswer: true,
+      },
+    }),
+    prisma.question.findMany({
+      where: {
+        userId: session.user.id,
+        parentQuestionId: question.id,
+        questionType: "FOLLOW_UP",
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+      select: {
+        body: true,
+      },
+    }),
+  ]);
+
+  const questionSequence = [question.body, ...existingFollowUpQuestions.map((item) => item.body)];
+  const currentQuestionBody = questionSequence[existingAttempts.length] ?? question.body;
+  const quizHistory = existingAttempts.map((attempt, index) => ({
+    question: questionSequence[index] ?? question.body,
+    answer: attempt.userAnswer,
+  }));
+
+  const scoring = await gradeQuestionAttempt(
+    currentQuestionBody,
+    parsed.data.answer,
+    context,
+    quizHistory,
+    questionSequence,
+  );
+  const followUpQuestion = buildUniqueFollowUpQuestion(scoring.followupQuestion, questionSequence, currentQuestionBody);
   const attemptDelegate = (
     prisma as unknown as {
       questionAttempt?: {
@@ -106,8 +180,6 @@ export async function submitQuestionAttemptAction(formData: FormData) {
     );
   }
 
-  let nextQuestionId = question.id;
-
   try {
     const createdAttempt = attemptDelegate.create({
       data: {
@@ -120,24 +192,17 @@ export async function submitQuestionAttemptAction(formData: FormData) {
       },
     });
 
-    console.log("ERICGUMBA Created attempt for question", question.id, "with score", scoring.score);
-    console.log("ERICGUMBA Created follow-up question for question", question.id, "with body", scoring.followupQuestion);
-
     const createdFollowUpQuestion = prisma.question.create({
       data: {
         userId: session.user.id,
         nodeId: question.nodeId,
         parentQuestionId: question.id,
-        body: scoring.followupQuestion,
+        body: followUpQuestion,
         questionType: "FOLLOW_UP",
-      },
-      select: {
-        id: true,
       },
     });
 
-    const [, followUpQuestion] = await Promise.all([createdAttempt, createdFollowUpQuestion]);
-    nextQuestionId = followUpQuestion.id;
+    await Promise.all([createdAttempt, createdFollowUpQuestion]);
   } catch {
     redirect(
       `/quiz/${question.id}?from=${encodeURIComponent(from)}&error=attempt_save_failed`,
@@ -145,8 +210,7 @@ export async function submitQuestionAttemptAction(formData: FormData) {
   }
 
   revalidatePath(`/quiz/${question.id}`);
-  revalidatePath(`/quiz/${nextQuestionId}`);
-  redirect(`/quiz/${nextQuestionId}?from=${encodeURIComponent(from)}&submitted=1`);
+  redirect(`/quiz/${question.id}?from=${encodeURIComponent(from)}&submitted=1`);
 }
 
 export async function resetQuestionAttemptAction(formData: FormData) {
@@ -193,12 +257,21 @@ export async function resetQuestionAttemptAction(formData: FormData) {
   }
 
   try {
-    await attemptDelegate.deleteMany({
-      where: {
-        questionId: question.id,
-        userId: session.user.id,
-      },
-    });
+    await prisma.$transaction([
+      attemptDelegate.deleteMany({
+        where: {
+          questionId: question.id,
+          userId: session.user.id,
+        },
+      }),
+      prisma.question.deleteMany({
+        where: {
+          userId: session.user.id,
+          parentQuestionId: question.id,
+          questionType: "FOLLOW_UP",
+        },
+      }),
+    ]);
   } catch {
     redirect(`/quiz/${question.id}?from=${encodeURIComponent(from)}&error=attempt_reset_failed`);
   }

@@ -14,15 +14,26 @@ type QuizBodyProps = {
     llmCorrection: string;
     answeredAt: Date;
   }>;
+  followUpQuestions: Array<{
+    id: string;
+    body: string;
+    createdAt: Date;
+  }>;
 };
-export function QuizBody({ questionId, questionBody, from, attempts }: QuizBodyProps) {
-  const latestAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
+export function QuizBody({ questionId, questionBody, from, attempts, followUpQuestions }: QuizBodyProps) {
+  const segmentQuestionBodies = [questionBody, ...followUpQuestions.map((question) => question.body)];
+  const activeQuestionBody = segmentQuestionBodies[attempts.length] ?? questionBody;
 
   return (
     <div className="flex flex-col gap-6">
       {attempts.map((attempt, index) => (
         <div key={`${attempt.answeredAt.toISOString()}-${index}`} className="flex flex-col gap-4">
-          <QuestionCard questionId={questionId} questionBody={questionBody} from={from} canReset={index === 0} />
+          <QuestionCard
+            questionId={questionId}
+            questionBody={segmentQuestionBodies[index] ?? questionBody}
+            from={from}
+            canReset={index === 0}
+          />
           <AnswerCard questionId={questionId} from={from} answer={attempt.userAnswer} editable={false} />
           <FeedbackCard
             feedback={{
@@ -36,12 +47,11 @@ export function QuizBody({ questionId, questionBody, from, attempts }: QuizBodyP
       ))}
 
       <div className="flex flex-col gap-4">
-        <QuestionCard questionId={questionId} questionBody={questionBody} from={from} canReset={false} />
+        <QuestionCard questionId={questionId} questionBody={activeQuestionBody} from={from} canReset={false} />
         <AnswerCard
           questionId={questionId}
           from={from}
           editable
-          prompt={latestAttempt ? latestAttempt.llmCorrection : undefined}
         />
         <FeedbackCard feedback={null} />
       </div>

@@ -44,6 +44,15 @@ export async function createQuestionAction(formData: FormData) {
       nodeId: parsed.data.nodeId,
       body: parsed.data.body,
       questionType: "MAIN",
+      reviewStates: {
+        create: {
+          userId: session.user.id,
+          status: "NEW",
+          intervalDays: 1,
+          repetitionCount: 0,
+          nextReviewAt: new Date(),
+        },
+      },
     },
   });
 

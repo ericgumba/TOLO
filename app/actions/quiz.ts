@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { questionAttemptCreateSchema, questionAttemptResetSchema } from "@/lib/auth/validation";
 import { gradeQuestionAttempt } from "@/lib/llm/grade-question-attempt";
 import { prisma } from "@/lib/prisma";
+import { upsertReviewStateFromAttempt } from "@/lib/review/service";
 
 function normalizeQuestion(value: string): string {
   return value
@@ -66,6 +67,7 @@ export async function submitQuestionAttemptAction(formData: FormData) {
       id: true,
       body: true,
       nodeId: true,
+      questionType: true,
       node: {
         select: {
           parentId: true,
@@ -203,6 +205,15 @@ export async function submitQuestionAttemptAction(formData: FormData) {
     });
 
     await Promise.all([createdAttempt, createdFollowUpQuestion]);
+
+    if (question.questionType === "MAIN") {
+      await upsertReviewStateFromAttempt({
+        userId: session.user.id,
+        questionId: question.id,
+        llmScore: scoring.score,
+        reviewedAt: new Date(),
+      });
+    }
   } catch {
     redirect(
       `/quiz/${question.id}?from=${encodeURIComponent(from)}&error=attempt_save_failed`,

@@ -12,6 +12,7 @@ type QuizPageProps = {
   }>;
   searchParams: Promise<{
     from?: string;
+    mode?: string;
     submitted?: string;
     reset?: string;
     error?: string;
@@ -35,6 +36,7 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
     select: {
       id: true,
       body: true,
+      questionType: true,
       node: {
         select: {
           id: true,
@@ -47,6 +49,66 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
 
   if (!question) {
     redirect("/dashboard");
+  }
+
+  if (question.questionType === "MAIN") {
+    const now = new Date();
+    const staleThreshold = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const latestAttempt = await prisma.questionAttempt.findFirst({
+      where: {
+        userId: session.user.id,
+        questionId: question.id,
+      },
+      orderBy: {
+        answeredAt: "desc",
+      },
+      select: {
+        answeredAt: true,
+      },
+    });
+
+    const isStale =
+      !!latestAttempt?.answeredAt &&
+      latestAttempt.answeredAt.getTime() <= staleThreshold.getTime();
+
+    if (isStale) {
+      await prisma.$transaction([
+        prisma.questionAttempt.deleteMany({
+          where: {
+            userId: session.user.id,
+            questionId: question.id,
+          },
+        }),
+        prisma.question.deleteMany({
+          where: {
+            userId: session.user.id,
+            parentQuestionId: question.id,
+            questionType: "FOLLOW_UP",
+          },
+        }),
+      ]);
+    }
+
+    await prisma.reviewState.upsert({
+      where: {
+        userId_questionId: {
+          userId: session.user.id,
+          questionId: question.id,
+        },
+      },
+      create: {
+        userId: session.user.id,
+        questionId: question.id,
+        status: "NEW",
+        intervalDays: 1,
+        repetitionCount: 0,
+        nextReviewAt: now,
+        lastQuizAccessedAt: now,
+      },
+      update: {
+        lastQuizAccessedAt: now,
+      },
+    });
   }
 
   const from = query.from?.startsWith("/") ? query.from : `/subject/${question.node.id}`;

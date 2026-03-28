@@ -63,7 +63,6 @@ export async function gradeQuestionAttempt(
     const existingQuestionsText =
       existingQuestions.length > 0 ? existingQuestions.map((q, index) => `${index + 1}. ${q}`).join("\n") : "None";
 
-      console.log("ERICGUMBA WTF ", existingQuestionsText);
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -78,7 +77,24 @@ export async function gradeQuestionAttempt(
           {
             role: "system",
             content:
-              "You are grading a student's free-form answer. Return strict JSON with keys: score, feedback, correction, followupQuestion. score must be integer 1..100. followupQuestion must be one concise question and must not duplicate prior questions.",
+              "You are grading a student's free-form answer.\n\n" +
+              "Return strict JSON with keys:\n" +
+              "- score (integer 1..100)\n" +
+              "- feedback\n" +
+              "- correction\n" +
+              "- followupQuestion\n\n" +
+              "The student's answer does not need to be detailed.\n\n" +
+              "If the answer is incomplete or incorrect:\n" +
+              "- Provide constructive feedback and a correction\n" +
+              "- Generate a guiding follow-up question that helps the student reach the correct understanding\n\n" +
+              "If the answer is mostly correct:\n" +
+              "- Generate a deeper follow-up question that expands understanding\n\n" +
+              "The follow-up question must be ONE of:\n" +
+              "- a \"why\" question (causal understanding)\n" +
+              "- a \"how\" question (mechanism)\n" +
+              "- a scenario-based question (application)\n" +
+              "- a comparison/tradeoff question\n\n" +
+              "Avoid generic questions. The question should require thinking, not recall.",
           },
           {
             role: "user",

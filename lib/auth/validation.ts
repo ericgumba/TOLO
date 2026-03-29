@@ -31,6 +31,15 @@ export const questionCreateSchema = z.object({
   returnTo: z.string().startsWith("/").optional(),
 });
 
+export const questionSettingsSchema = z.object({
+  questionId: z.string().cuid(),
+  returnTo: z.string().startsWith("/").optional(),
+});
+
+export const questionDeleteSchema = questionSettingsSchema.extend({
+  confirmDelete: z.literal("DELETE"),
+});
+
 export const questionAttemptCreateSchema = z.object({
   questionId: z.string().cuid(),
   answer: z.string().trim().min(1).max(4000),

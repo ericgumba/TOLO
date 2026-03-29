@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { createNodeAction } from "@/app/actions/nodes";
 import { createQuestionAction } from "@/app/actions/questions";
+import { QuestionListItem } from "@/app/components/question-list-item";
 import { SubjectTocSidebar } from "@/app/components/subject-toc-sidebar";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -40,6 +41,7 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
   const activeNodeId = selectedSubtopic?.id ?? topic.id;
   const activeNodeLabel = selectedSubtopic ? `subtopic "${selectedSubtopic.title}"` : `topic "${topic.title}"`;
   const routePath = `/subject/${subjectId}/topic/${topicId}`;
+  const returnToPath = selectedSubtopic ? `${routePath}?subtopic=${selectedSubtopic.id}` : routePath;
   const nodeIds = selectedSubtopic
     ? [selectedSubtopic.id]
     : [topic.id, ...topic.children.map((subtopic) => subtopic.id)];
@@ -59,7 +61,6 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
     reviewStates: Array<{ nextReviewAt: Date }>;
   }> = [];
   const now = new Date();
-  const oneDayMs = 24 * 60 * 60 * 1000;
   const questionDelegate = (
     prisma as unknown as {
       question?: {
@@ -211,7 +212,7 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
             <h2 className="text-lg font-semibold text-slate-900">Create Question</h2>
             <form action={createQuestionAction} className="mt-3 flex flex-col gap-2 sm:max-w-xl">
               <input type="hidden" name="nodeId" value={activeNodeId} />
-              <input type="hidden" name="returnTo" value={routePath} />
+              <input type="hidden" name="returnTo" value={returnToPath} />
               <textarea
                 required
                 name="body"
@@ -235,37 +236,16 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
             ) : (
               <ul className="mt-3 flex flex-col gap-2">
                 {nodeQuestions.map((question) => (
-                  <li key={question.id}>
-                    {(() => {
-                      const lastAnsweredAt = question.attempts[0]?.answeredAt ?? null;
-                      const nextReviewAt = question.reviewStates[0]?.nextReviewAt ?? null;
-                      const daysUntilReview = nextReviewAt
-                        ? Math.ceil((nextReviewAt.getTime() - now.getTime()) / oneDayMs)
-                        : null;
-                      const questionPath = nodePathById.get(question.nodeId) ?? `${subject.title} > ${topic.title}`;
-
-                      return (
-                        <Link
-                          href={`/quiz/${question.id}?from=${encodeURIComponent(routePath)}`}
-                          className="block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 transition hover:border-blue-200 hover:bg-blue-50/50 hover:text-slate-900"
-                        >
-                          <p>{question.body}</p>
-                          <p className="mt-1 text-xs text-slate-500">Path: {questionPath}</p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            Last answered at: {lastAnsweredAt ? lastAnsweredAt.toLocaleString() : "Never"}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            Next review:{" "}
-                            {daysUntilReview === null
-                              ? "Not scheduled"
-                              : daysUntilReview <= 0
-                                ? "Today"
-                                : `in ${daysUntilReview} day${daysUntilReview === 1 ? "" : "s"}`}
-                          </p>
-                        </Link>
-                      );
-                    })()}
-                  </li>
+                  <QuestionListItem
+                    key={question.id}
+                    questionId={question.id}
+                    questionBody={question.body}
+                    questionPath={nodePathById.get(question.nodeId) ?? `${subject.title} > ${topic.title}`}
+                    returnTo={returnToPath}
+                    lastAnsweredAt={question.attempts[0]?.answeredAt ?? null}
+                    nextReviewAt={question.reviewStates[0]?.nextReviewAt ?? null}
+                    now={now}
+                  />
                 ))}
               </ul>
             )}

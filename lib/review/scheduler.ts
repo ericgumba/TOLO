@@ -28,6 +28,11 @@ export type ReviewSchedulerResult = {
   nextReviewAt: Date;
 };
 
+export type ReviewAdvanceCheckInput = {
+  reviewedAt: Date;
+  nextReviewAt?: Date | null;
+};
+
 export function createInitialReviewState(now: Date): ReviewSchedulerResult {
   return {
     status: REVIEW_STATUS.NEW,
@@ -40,6 +45,14 @@ export function createInitialReviewState(now: Date): ReviewSchedulerResult {
 
 function addDays(value: Date, days: number): Date {
   return new Date(value.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+export function shouldAdvanceReviewState(input: ReviewAdvanceCheckInput): boolean {
+  if (!input.nextReviewAt) {
+    return true;
+  }
+
+  return input.reviewedAt.getTime() >= input.nextReviewAt.getTime();
 }
 
 export function computeNextReviewState(input: ReviewSchedulerInput): ReviewSchedulerResult {

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { REVIEW_STATUS, computeNextReviewState, createInitialReviewState } from "@/lib/review/scheduler";
+import {
+  REVIEW_STATUS,
+  computeNextReviewState,
+  createInitialReviewState,
+  shouldAdvanceReviewState,
+} from "@/lib/review/scheduler";
 
 describe("createInitialReviewState", () => {
   it("initializes a NEW review state due immediately", () => {
@@ -95,5 +100,32 @@ describe("computeNextReviewState", () => {
     expect(afterLow.intervalDays).toBe(1);
     expect(afterLow.repetitionCount).toBe(0);
     expect(afterLow.status).toBe(REVIEW_STATUS.STRUGGLING);
+  });
+});
+
+describe("shouldAdvanceReviewState", () => {
+  it("returns true when the review is due", () => {
+    expect(
+      shouldAdvanceReviewState({
+        reviewedAt: new Date("2026-03-25T00:00:00.000Z"),
+        nextReviewAt: new Date("2026-03-25T00:00:00.000Z"),
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldAdvanceReviewState({
+        reviewedAt: new Date("2026-03-26T00:00:00.000Z"),
+        nextReviewAt: new Date("2026-03-25T00:00:00.000Z"),
+      }),
+    ).toBe(true);
+  });
+
+  it("returns false when the answer is submitted before the review is due", () => {
+    expect(
+      shouldAdvanceReviewState({
+        reviewedAt: new Date("2026-03-25T00:00:00.000Z"),
+        nextReviewAt: new Date("2026-03-26T00:00:00.000Z"),
+      }),
+    ).toBe(false);
   });
 });

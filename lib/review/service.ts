@@ -1,7 +1,12 @@
 import { QuestionType } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { computeNextReviewState, REVIEW_STATUS, type ReviewStatusValue } from "@/lib/review/scheduler";
+import {
+  computeNextReviewState,
+  REVIEW_STATUS,
+  shouldAdvanceReviewState,
+  type ReviewStatusValue,
+} from "@/lib/review/scheduler";
 
 export type DueReviewQuestion = {
   reviewStateId: string;
@@ -183,8 +188,19 @@ export async function upsertReviewStateFromAttempt(input: {
     select: {
       intervalDays: true,
       repetitionCount: true,
+      nextReviewAt: true,
     },
   });
+
+  if (
+    existingState &&
+    !shouldAdvanceReviewState({
+      reviewedAt: input.reviewedAt,
+      nextReviewAt: existingState.nextReviewAt,
+    })
+  ) {
+    return;
+  }
 
   const next = computeNextReviewState({
     llmScore: input.llmScore,

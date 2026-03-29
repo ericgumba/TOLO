@@ -31,13 +31,37 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
   const topicCount = subject.children.length;
   const subtopicCount = subject.children.reduce((total, topic) => total + topic.children.length, 0);
   const nodeIds = [subject.id, ...subject.children.flatMap((topic) => [topic.id, ...topic.children.map((sub) => sub.id)])];
+  const nodePathById = new Map<string, string>();
+  nodePathById.set(subject.id, subject.title);
+  for (const topic of subject.children) {
+    nodePathById.set(topic.id, `${subject.title} > ${topic.title}`);
+    for (const subtopic of topic.children) {
+      nodePathById.set(subtopic.id, `${subject.title} > ${topic.title} > ${subtopic.title}`);
+    }
+  }
   let questionCount = 0;
-  let nodeQuestions: Array<{ id: string; body: string }> = [];
+  let nodeQuestions: Array<{
+    id: string;
+    nodeId: string;
+    body: string;
+    attempts: Array<{ answeredAt: Date }>;
+    reviewStates: Array<{ nextReviewAt: Date }>;
+  }> = [];
+  const now = new Date();
+  const oneDayMs = 24 * 60 * 60 * 1000;
   const questionDelegate = (
     prisma as unknown as {
       question?: {
         count: (args: unknown) => Promise<number>;
-        findMany: (args: unknown) => Promise<Array<{ id: string; body: string }>>;
+        findMany: (args: unknown) => Promise<
+          Array<{
+            id: string;
+            nodeId: string;
+            body: string;
+            attempts: Array<{ answeredAt: Date }>;
+            reviewStates: Array<{ nextReviewAt: Date }>;
+          }>
+        >;
       };
     }
   ).question;
@@ -56,14 +80,38 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
         where: {
           userId: session.user.id,
           questionType: "MAIN",
-          nodeId: subject.id,
+          nodeId: {
+            in: nodeIds,
+          },
         },
         orderBy: {
           createdAt: "desc",
         },
         select: {
           id: true,
+          nodeId: true,
           body: true,
+          attempts: {
+            where: {
+              userId: session.user.id,
+            },
+            orderBy: {
+              answeredAt: "desc",
+            },
+            take: 1,
+            select: {
+              answeredAt: true,
+            },
+          },
+          reviewStates: {
+            where: {
+              userId: session.user.id,
+            },
+            take: 1,
+            select: {
+              nextReviewAt: true,
+            },
+          },
         },
       });
     } catch {
@@ -157,12 +205,35 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
               <ul className="mt-3 flex flex-col gap-2">
                 {nodeQuestions.map((question) => (
                   <li key={question.id}>
-                    <Link
-                      href={`/quiz/${question.id}?from=${encodeURIComponent(`/subject/${subject.id}`)}`}
-                      className="block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 transition hover:border-blue-200 hover:bg-blue-50/50 hover:text-slate-900"
-                    >
-                      {question.body}
-                    </Link>
+                    {(() => {
+                      const lastAnsweredAt = question.attempts[0]?.answeredAt ?? null;
+                      const nextReviewAt = question.reviewStates[0]?.nextReviewAt ?? null;
+                      const daysUntilReview = nextReviewAt
+                        ? Math.ceil((nextReviewAt.getTime() - now.getTime()) / oneDayMs)
+                        : null;
+                      const questionPath = nodePathById.get(question.nodeId) ?? subject.title;
+
+                      return (
+                        <Link
+                          href={`/quiz/${question.id}?from=${encodeURIComponent(`/subject/${subject.id}`)}`}
+                          className="block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 transition hover:border-blue-200 hover:bg-blue-50/50 hover:text-slate-900"
+                        >
+                          <p>{question.body}</p>
+                          <p className="mt-1 text-xs text-slate-500">Path: {questionPath}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Last answered at: {lastAnsweredAt ? lastAnsweredAt.toLocaleString() : "Never"}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            Next review:{" "}
+                            {daysUntilReview === null
+                              ? "Not scheduled"
+                              : daysUntilReview <= 0
+                                ? "Today"
+                                : `in ${daysUntilReview} day${daysUntilReview === 1 ? "" : "s"}`}
+                          </p>
+                        </Link>
+                      );
+                    })()}
                   </li>
                 ))}
               </ul>

@@ -94,7 +94,7 @@ export async function gradeQuestionAttempt(
               "- a \"how\" question (mechanism)\n" +
               "- a scenario-based question (application)\n" +
               "- a comparison/tradeoff question\n\n" +
-              "Avoid generic questions. The question should require thinking, not recall.",
+              "Avoid generic questions. Try to aim for scenario-based questions. The question should require thinking, not recall.",
           },
           {
             role: "user",

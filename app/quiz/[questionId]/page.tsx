@@ -72,21 +72,13 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
       latestAttempt.answeredAt.getTime() <= staleThreshold.getTime();
 
     if (isStale) {
-      await prisma.$transaction([
-        prisma.questionAttempt.deleteMany({
-          where: {
-            userId: session.user.id,
-            questionId: question.id,
-          },
-        }),
-        prisma.question.deleteMany({
-          where: {
-            userId: session.user.id,
-            parentQuestionId: question.id,
-            questionType: "FOLLOW_UP",
-          },
-        }),
-      ]);
+      await prisma.question.deleteMany({
+        where: {
+          userId: session.user.id,
+          parentQuestionId: question.id,
+          questionType: "FOLLOW_UP",
+        },
+      });
     }
 
     await prisma.reviewState.upsert({

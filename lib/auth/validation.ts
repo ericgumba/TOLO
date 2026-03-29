@@ -35,9 +35,20 @@ export const questionAttemptCreateSchema = z.object({
   questionId: z.string().cuid(),
   answer: z.string().trim().min(1).max(4000),
   from: z.string().startsWith("/").optional(),
+  mode: z.string().trim().min(1).max(32).optional(),
 });
 
 export const questionAttemptResetSchema = z.object({
   questionId: z.string().cuid(),
   from: z.string().startsWith("/").optional(),
+  mode: z.string().trim().min(1).max(32).optional(),
+});
+
+export const questionHintRequestSchema = z.object({
+  questionId: z.string().cuid(),
+  from: z.string().startsWith("/").optional(),
+  mode: z.string().trim().min(1).max(32).optional(),
+  hint1: z.string().trim().min(1).max(400).optional(),
+  hint2: z.string().trim().min(1).max(400).optional(),
+  hint3: z.string().trim().min(1).max(400).optional(),
 });

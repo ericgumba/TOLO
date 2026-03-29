@@ -7,6 +7,7 @@ type QuizBodyProps = {
   questionId: string;
   questionBody: string;
   from: string;
+  mode?: string;
   attempts: Array<{
     userAnswer: string;
     llmScore: number;
@@ -19,8 +20,9 @@ type QuizBodyProps = {
     body: string;
     createdAt: Date;
   }>;
+  activeHints: string[];
 };
-export function QuizBody({ questionId, questionBody, from, attempts, followUpQuestions }: QuizBodyProps) {
+export function QuizBody({ questionId, questionBody, from, mode, attempts, followUpQuestions, activeHints }: QuizBodyProps) {
   const segmentQuestionBodies = [questionBody, ...followUpQuestions.map((question) => question.body)];
   const activeQuestionBody = segmentQuestionBodies[attempts.length] ?? questionBody;
 
@@ -32,9 +34,10 @@ export function QuizBody({ questionId, questionBody, from, attempts, followUpQue
             questionId={questionId}
             questionBody={segmentQuestionBodies[index] ?? questionBody}
             from={from}
+            mode={mode}
             canReset={index === 0}
           />
-          <AnswerCard questionId={questionId} from={from} answer={attempt.userAnswer} editable={false} />
+          <AnswerCard questionId={questionId} from={from} mode={mode} answer={attempt.userAnswer} editable={false} />
           <FeedbackCard
             feedback={{
               llmScore: attempt.llmScore,
@@ -47,11 +50,13 @@ export function QuizBody({ questionId, questionBody, from, attempts, followUpQue
       ))}
 
       <div className="flex flex-col gap-4">
-        <QuestionCard questionId={questionId} questionBody={activeQuestionBody} from={from} canReset={false} />
+        <QuestionCard questionId={questionId} questionBody={activeQuestionBody} from={from} mode={mode} canReset={false} />
         <AnswerCard
           questionId={questionId}
           from={from}
+          mode={mode}
           editable
+          hints={activeHints}
         />
         <FeedbackCard feedback={null} />
       </div>

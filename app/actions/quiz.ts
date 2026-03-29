@@ -4,10 +4,47 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { questionAttemptCreateSchema, questionAttemptResetSchema } from "@/lib/auth/validation";
+import {
+  questionAttemptCreateSchema,
+  questionAttemptResetSchema,
+  questionHintRequestSchema,
+} from "@/lib/auth/validation";
+import { generateQuestionHint } from "@/lib/llm/generate-question-hint";
 import { gradeQuestionAttempt } from "@/lib/llm/grade-question-attempt";
+import { assertCanUseLlm, LlmDailyLimitExceededError, logLlmUsage } from "@/lib/llm/usage-limit";
 import { prisma } from "@/lib/prisma";
 import { upsertReviewStateFromAttempt } from "@/lib/review/service";
+
+type QuestionContextNode = {
+  id: string;
+  title: string;
+  level: "SUBJECT" | "TOPIC" | "SUBTOPIC";
+};
+
+type QuizHistoryItem = {
+  question: string;
+  answer: string;
+};
+
+type LoadedQuizState = {
+  question: {
+    id: string;
+    body: string;
+    nodeId: string;
+    questionType: "MAIN" | "FOLLOW_UP";
+    node: {
+      parentId: string | null;
+      id: string;
+      title: string;
+      level: "SUBJECT" | "TOPIC" | "SUBTOPIC";
+    };
+  };
+  context: QuestionContextNode[];
+  existingAttempts: Array<{ userAnswer: string }>;
+  questionSequence: string[];
+  quizHistory: QuizHistoryItem[];
+  currentQuestionBody: string;
+};
 
 function normalizeQuestion(value: string): string {
   return value
@@ -41,27 +78,63 @@ function buildUniqueFollowUpQuestion(candidate: string, existingQuestions: strin
   return `What is one additional missing detail about this topic? (${existingQuestions.length + 1})`;
 }
 
-export async function submitQuestionAttemptAction(formData: FormData) {
-  const session = await auth();
+function normalizeFrom(value?: string): string {
+  return value?.startsWith("/") ? value : "/dashboard";
+}
 
-  if (!session?.user?.id) {
-    redirect("/login");
+function normalizeMode(value?: string): string | null {
+  if (!value || value.trim().length === 0) {
+    return null;
   }
 
-  const parsed = questionAttemptCreateSchema.safeParse({
-    questionId: formData.get("questionId"),
-    answer: formData.get("answer"),
-    from: formData.get("from") || undefined,
-  });
+  return value;
+}
 
-  if (!parsed.success) {
-    redirect("/dashboard?error=Invalid%20quiz%20submission");
+function getExistingHints(input: { hint1?: string; hint2?: string; hint3?: string }): string[] {
+  return [input.hint1, input.hint2, input.hint3].filter(
+    (hint): hint is string => typeof hint === "string" && hint.trim().length > 0,
+  );
+}
+
+function buildQuizUrl(input: {
+  questionId: string;
+  from: string;
+  mode?: string | null;
+  submitted?: boolean;
+  reset?: boolean;
+  error?: string;
+  hints?: string[];
+}): string {
+  const params = new URLSearchParams();
+  params.set("from", input.from);
+
+  if (input.mode) {
+    params.set("mode", input.mode);
+  }
+  if (input.submitted) {
+    params.set("submitted", "1");
+  }
+  if (input.reset) {
+    params.set("reset", "1");
+  }
+  if (input.error) {
+    params.set("error", input.error);
   }
 
+  if (input.hints) {
+    input.hints.slice(0, 3).forEach((hint, index) => {
+      params.set(`hint${index + 1}`, hint);
+    });
+  }
+
+  return `/quiz/${input.questionId}?${params.toString()}`;
+}
+
+async function loadQuizState(userId: string, questionId: string): Promise<LoadedQuizState | null> {
   const question = await prisma.question.findFirst({
     where: {
-      id: parsed.data.questionId,
-      userId: session.user.id,
+      id: questionId,
+      userId,
     },
     select: {
       id: true,
@@ -80,22 +153,17 @@ export async function submitQuestionAttemptAction(formData: FormData) {
   });
 
   if (!question) {
-    redirect("/dashboard?error=Question%20not%20found");
+    return null;
   }
 
-  const context: Array<{
-    id: string;
-    title: string;
-    level: "SUBJECT" | "TOPIC" | "SUBTOPIC";
-  }> = [];
-
+  const context: QuestionContextNode[] = [];
   let currentParentId = question.node.parentId;
 
   while (currentParentId) {
     const parentNode = await prisma.node.findFirst({
       where: {
         id: currentParentId,
-        userId: session.user.id,
+        userId,
       },
       select: {
         id: true,
@@ -128,7 +196,7 @@ export async function submitQuestionAttemptAction(formData: FormData) {
     prisma.questionAttempt.findMany({
       where: {
         questionId: question.id,
-        userId: session.user.id,
+        userId,
       },
       orderBy: {
         answeredAt: "asc",
@@ -139,7 +207,7 @@ export async function submitQuestionAttemptAction(formData: FormData) {
     }),
     prisma.question.findMany({
       where: {
-        userId: session.user.id,
+        userId,
         parentQuestionId: question.id,
         questionType: "FOLLOW_UP",
       },
@@ -159,14 +227,77 @@ export async function submitQuestionAttemptAction(formData: FormData) {
     answer: attempt.userAnswer,
   }));
 
-  const scoring = await gradeQuestionAttempt(
-    currentQuestionBody,
-    parsed.data.answer,
+  return {
+    question,
     context,
-    quizHistory,
+    existingAttempts,
     questionSequence,
+    quizHistory,
+    currentQuestionBody,
+  };
+}
+
+export async function submitQuestionAttemptAction(formData: FormData) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const parsed = questionAttemptCreateSchema.safeParse({
+    questionId: formData.get("questionId"),
+    answer: formData.get("answer"),
+    from: formData.get("from") || undefined,
+    mode: formData.get("mode") || undefined,
+  });
+
+  if (!parsed.success) {
+    redirect("/dashboard?error=Invalid%20quiz%20submission");
+  }
+
+  const loaded = await loadQuizState(session.user.id, parsed.data.questionId);
+  if (!loaded) {
+    redirect("/dashboard?error=Question%20not%20found");
+  }
+
+  const from = normalizeFrom(parsed.data.from);
+  const mode = normalizeMode(parsed.data.mode);
+
+  try {
+    await assertCanUseLlm(session.user.id);
+  } catch (error) {
+    if (error instanceof LlmDailyLimitExceededError) {
+      redirect(
+        buildQuizUrl({
+          questionId: loaded.question.id,
+          from,
+          mode,
+          error: "llm_daily_limit_reached",
+        }),
+      );
+    }
+    redirect(
+      buildQuizUrl({
+        questionId: loaded.question.id,
+        from,
+        mode,
+        error: "attempt_save_failed",
+      }),
+    );
+  }
+
+  const scoring = await gradeQuestionAttempt(
+    loaded.currentQuestionBody,
+    parsed.data.answer,
+    loaded.context,
+    loaded.quizHistory,
+    loaded.questionSequence,
   );
-  const followUpQuestion = buildUniqueFollowUpQuestion(scoring.followupQuestion, questionSequence, currentQuestionBody);
+  const followUpQuestion = buildUniqueFollowUpQuestion(
+    scoring.followupQuestion,
+    loaded.questionSequence,
+    loaded.currentQuestionBody,
+  );
   const attemptDelegate = (
     prisma as unknown as {
       questionAttempt?: {
@@ -174,18 +305,21 @@ export async function submitQuestionAttemptAction(formData: FormData) {
       };
     }
   ).questionAttempt;
-  const from = parsed.data.from?.startsWith("/") ? parsed.data.from : "/dashboard";
 
   if (!attemptDelegate) {
-    redirect(
-      `/quiz/${question.id}?from=${encodeURIComponent(from)}&error=attempt_model_unavailable`,
-    );
+    redirect(buildQuizUrl({ questionId: loaded.question.id, from, mode, error: "attempt_model_unavailable" }));
+  }
+
+  try {
+    await logLlmUsage(session.user.id, "GRADE");
+  } catch {
+    redirect(buildQuizUrl({ questionId: loaded.question.id, from, mode, error: "attempt_save_failed" }));
   }
 
   try {
     const createdAttempt = attemptDelegate.create({
       data: {
-        questionId: question.id,
+        questionId: loaded.question.id,
         userId: session.user.id,
         userAnswer: parsed.data.answer,
         llmScore: scoring.score,
@@ -197,8 +331,8 @@ export async function submitQuestionAttemptAction(formData: FormData) {
     const createdFollowUpQuestion = prisma.question.create({
       data: {
         userId: session.user.id,
-        nodeId: question.nodeId,
-        parentQuestionId: question.id,
+        nodeId: loaded.question.nodeId,
+        parentQuestionId: loaded.question.id,
         body: followUpQuestion,
         questionType: "FOLLOW_UP",
       },
@@ -206,22 +340,137 @@ export async function submitQuestionAttemptAction(formData: FormData) {
 
     await Promise.all([createdAttempt, createdFollowUpQuestion]);
 
-    if (question.questionType === "MAIN") {
+    if (loaded.question.questionType === "MAIN") {
       await upsertReviewStateFromAttempt({
         userId: session.user.id,
-        questionId: question.id,
+        questionId: loaded.question.id,
         llmScore: scoring.score,
         reviewedAt: new Date(),
       });
     }
   } catch {
+    redirect(buildQuizUrl({ questionId: loaded.question.id, from, mode, error: "attempt_save_failed" }));
+  }
+
+  revalidatePath(`/quiz/${loaded.question.id}`);
+  redirect(buildQuizUrl({ questionId: loaded.question.id, from, mode, submitted: true }));
+}
+
+export async function requestQuestionHintAction(formData: FormData) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const parsed = questionHintRequestSchema.safeParse({
+    questionId: formData.get("questionId"),
+    from: formData.get("from") || undefined,
+    mode: formData.get("mode") || undefined,
+    hint1: formData.get("hint1") || undefined,
+    hint2: formData.get("hint2") || undefined,
+    hint3: formData.get("hint3") || undefined,
+  });
+
+  if (!parsed.success) {
+    redirect("/dashboard?error=Invalid%20hint%20request");
+  }
+
+  const loaded = await loadQuizState(session.user.id, parsed.data.questionId);
+  if (!loaded) {
+    redirect("/dashboard?error=Question%20not%20found");
+  }
+
+  const from = normalizeFrom(parsed.data.from);
+  const mode = normalizeMode(parsed.data.mode);
+  const existingHints = getExistingHints(parsed.data);
+
+  if (existingHints.length >= 3) {
     redirect(
-      `/quiz/${question.id}?from=${encodeURIComponent(from)}&error=attempt_save_failed`,
+      buildQuizUrl({
+        questionId: loaded.question.id,
+        from,
+        mode,
+        hints: existingHints,
+        error: "hint_limit_reached",
+      }),
     );
   }
 
-  revalidatePath(`/quiz/${question.id}`);
-  redirect(`/quiz/${question.id}?from=${encodeURIComponent(from)}&submitted=1`);
+  try {
+    await assertCanUseLlm(session.user.id);
+  } catch (error) {
+    if (error instanceof LlmDailyLimitExceededError) {
+      redirect(
+        buildQuizUrl({
+          questionId: loaded.question.id,
+          from,
+          mode,
+          hints: existingHints,
+          error: "llm_daily_limit_reached",
+        }),
+      );
+    }
+    redirect(
+      buildQuizUrl({
+        questionId: loaded.question.id,
+        from,
+        mode,
+        hints: existingHints,
+        error: "hint_generation_failed",
+      }),
+    );
+  }
+
+  const hintLevel = (existingHints.length + 1) as 1 | 2 | 3;
+  const hint = await generateQuestionHint({
+    question: loaded.currentQuestionBody,
+    context: loaded.context,
+    quizHistory: loaded.quizHistory,
+    hintLevel,
+    existingHints,
+  });
+
+  const nextHint = hint.trim();
+  if (nextHint.length === 0) {
+    redirect(
+      buildQuizUrl({
+        questionId: loaded.question.id,
+        from,
+        mode,
+        hints: existingHints,
+        error: "hint_generation_failed",
+      }),
+    );
+  }
+
+  const existingNormalized = new Set(existingHints.map(normalizeQuestion));
+  const finalHint = existingNormalized.has(normalizeQuestion(nextHint))
+    ? `Think first about the missing mechanism in this answer (hint ${hintLevel}).`
+    : nextHint;
+
+  try {
+    await logLlmUsage(session.user.id, "HINT");
+  } catch {
+    redirect(
+      buildQuizUrl({
+        questionId: loaded.question.id,
+        from,
+        mode,
+        hints: existingHints,
+        error: "hint_generation_failed",
+      }),
+    );
+  }
+
+  redirect(
+    buildQuizUrl({
+      questionId: loaded.question.id,
+      from,
+      mode,
+      hints: [...existingHints, finalHint],
+    }),
+  );
 }
 
 export async function resetQuestionAttemptAction(formData: FormData) {
@@ -234,6 +483,7 @@ export async function resetQuestionAttemptAction(formData: FormData) {
   const parsed = questionAttemptResetSchema.safeParse({
     questionId: formData.get("questionId"),
     from: formData.get("from") || undefined,
+    mode: formData.get("mode") || undefined,
   });
 
   if (!parsed.success) {
@@ -261,10 +511,11 @@ export async function resetQuestionAttemptAction(formData: FormData) {
       };
     }
   ).questionAttempt;
-  const from = parsed.data.from?.startsWith("/") ? parsed.data.from : "/dashboard";
+  const from = normalizeFrom(parsed.data.from);
+  const mode = normalizeMode(parsed.data.mode);
 
   if (!attemptDelegate) {
-    redirect(`/quiz/${question.id}?from=${encodeURIComponent(from)}&error=attempt_model_unavailable`);
+    redirect(buildQuizUrl({ questionId: question.id, from, mode, error: "attempt_model_unavailable" }));
   }
 
   try {
@@ -284,9 +535,9 @@ export async function resetQuestionAttemptAction(formData: FormData) {
       }),
     ]);
   } catch {
-    redirect(`/quiz/${question.id}?from=${encodeURIComponent(from)}&error=attempt_reset_failed`);
+    redirect(buildQuizUrl({ questionId: question.id, from, mode, error: "attempt_reset_failed" }));
   }
 
   revalidatePath(`/quiz/${question.id}`);
-  redirect(`/quiz/${question.id}?from=${encodeURIComponent(from)}&reset=1`);
+  redirect(buildQuizUrl({ questionId: question.id, from, mode, reset: true }));
 }

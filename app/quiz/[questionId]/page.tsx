@@ -15,6 +15,9 @@ type QuizPageProps = {
     mode?: string;
     submitted?: string;
     reset?: string;
+    hint1?: string;
+    hint2?: string;
+    hint3?: string;
     error?: string;
   }>;
 };
@@ -104,12 +107,19 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
   }
 
   const from = query.from?.startsWith("/") ? query.from : `/subject/${question.node.id}`;
+  const mode = typeof query.mode === "string" ? query.mode : undefined;
   const submitted = query.submitted === "1";
   const reset = query.reset === "1";
+  const activeHints = [query.hint1, query.hint2, query.hint3].filter(
+    (hint): hint is string => typeof hint === "string" && hint.trim().length > 0,
+  );
   const saveError =
     query.error === "attempt_model_unavailable" ||
     query.error === "attempt_save_failed" ||
     query.error === "attempt_reset_failed";
+  const hintError = query.error === "hint_generation_failed";
+  const hintLimitReached = query.error === "hint_limit_reached";
+  const llmLimitReached = query.error === "llm_daily_limit_reached";
   const attemptDelegate = (
     prisma as unknown as {
       questionAttempt?: {
@@ -187,10 +197,19 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
         questionId={question.id}
         questionBody={question.body}
         from={from}
+        mode={mode}
         attempts={attempts}
         followUpQuestions={followUpQuestions}
+        activeHints={activeHints}
       />
-      <StatusBanners submitted={submitted} reset={reset} saveError={saveError} />
+      <StatusBanners
+        submitted={submitted}
+        reset={reset}
+        saveError={saveError}
+        hintError={hintError}
+        hintLimitReached={hintLimitReached}
+        llmLimitReached={llmLimitReached}
+      />
     </main>
   );
 }

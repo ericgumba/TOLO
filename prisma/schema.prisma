@@ -31,6 +31,11 @@ enum ReviewStatus {
   STRUGGLING
 }
 
+enum LlmUsageType {
+  GRADE
+  HINT
+}
+
 model User {
   id                 String             @id @default(cuid())
   email              String             @unique
@@ -44,6 +49,7 @@ model User {
   questions Question[]
   attempts  QuestionAttempt[]
   reviewStates ReviewState[]
+  llmUsageEvents LlmUsageEvent[]
 }
 
 model Node {
@@ -127,4 +133,16 @@ model ReviewState {
   @@unique([userId, questionId])
   @@index([userId, nextReviewAt])
   @@index([userId, status])
+}
+
+model LlmUsageEvent {
+  id        String       @id @default(cuid())
+  userId    String
+  type      LlmUsageType
+  createdAt DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, type, createdAt])
 }

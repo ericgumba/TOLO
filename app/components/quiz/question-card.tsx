@@ -4,10 +4,11 @@ type QuestionCardProps = {
   questionId: string;
   questionBody: string;
   from: string;
+  mode?: string;
   canReset: boolean;
 };
 
-export function QuestionCard({ questionId, questionBody, from, canReset }: QuestionCardProps) {
+export function QuestionCard({ questionId, questionBody, from, mode, canReset }: QuestionCardProps) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -16,6 +17,7 @@ export function QuestionCard({ questionId, questionBody, from, canReset }: Quest
           <form action={resetQuestionAttemptAction}>
             <input type="hidden" name="questionId" value={questionId} />
             <input type="hidden" name="from" value={from} />
+            {mode ? <input type="hidden" name="mode" value={mode} /> : null}
             <button
               type="submit"
               className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-zinc-100"

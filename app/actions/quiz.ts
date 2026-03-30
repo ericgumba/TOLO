@@ -11,6 +11,8 @@ import {
 } from "@/lib/auth/validation";
 import { generateQuestionHint } from "@/lib/llm/generate-question-hint";
 import { gradeQuestionAttempt } from "@/lib/llm/grade-question-attempt";
+import { LlmRequestTimeoutError } from "@/lib/llm/request";
+import { MAX_FOLLOW_UP_QUESTIONS } from "@/lib/quiz/constants";
 import { assertCanUseLlm, LlmDailyLimitExceededError, logLlmUsage } from "@/lib/llm/usage-limit";
 import { prisma } from "@/lib/prisma";
 import { upsertReviewStateFromAttempt } from "@/lib/review/service";
@@ -41,6 +43,7 @@ type LoadedQuizState = {
   };
   context: QuestionContextNode[];
   existingAttempts: Array<{ userAnswer: string }>;
+  existingFollowUpCount: number;
   questionSequence: string[];
   quizHistory: QuizHistoryItem[];
   currentQuestionBody: string;
@@ -214,6 +217,7 @@ async function loadQuizState(userId: string, questionId: string): Promise<Loaded
       orderBy: {
         createdAt: "asc",
       },
+      take: MAX_FOLLOW_UP_QUESTIONS,
       select: {
         body: true,
       },
@@ -221,9 +225,9 @@ async function loadQuizState(userId: string, questionId: string): Promise<Loaded
   ]);
 
   const questionSequence = [question.body, ...existingFollowUpQuestions.map((item) => item.body)];
-  const currentQuestionBody = questionSequence[existingAttempts.length] ?? question.body;
+  const currentQuestionBody = questionSequence[Math.min(existingAttempts.length, questionSequence.length - 1)] ?? question.body;
   const quizHistory = existingAttempts.map((attempt, index) => ({
-    question: questionSequence[index] ?? question.body,
+    question: questionSequence[Math.min(index, questionSequence.length - 1)] ?? question.body,
     answer: attempt.userAnswer,
   }));
 
@@ -231,6 +235,7 @@ async function loadQuizState(userId: string, questionId: string): Promise<Loaded
     question,
     context,
     existingAttempts,
+    existingFollowUpCount: existingFollowUpQuestions.length,
     questionSequence,
     quizHistory,
     currentQuestionBody,
@@ -262,6 +267,7 @@ export async function submitQuestionAttemptAction(formData: FormData) {
 
   const from = normalizeFrom(parsed.data.from);
   const mode = normalizeMode(parsed.data.mode);
+  const isInitialMainQuestionAttempt = loaded.question.questionType === "MAIN" && loaded.existingAttempts.length === 0;
 
   try {
     await assertCanUseLlm(session.user.id);
@@ -286,18 +292,45 @@ export async function submitQuestionAttemptAction(formData: FormData) {
     );
   }
 
-  const scoring = await gradeQuestionAttempt(
-    loaded.currentQuestionBody,
-    parsed.data.answer,
-    loaded.context,
-    loaded.quizHistory,
-    loaded.questionSequence,
-  );
-  const followUpQuestion = buildUniqueFollowUpQuestion(
-    scoring.followupQuestion,
-    loaded.questionSequence,
-    loaded.currentQuestionBody,
-  );
+  let scoring;
+  try {
+    scoring = await gradeQuestionAttempt(
+      loaded.currentQuestionBody,
+      parsed.data.answer,
+      loaded.context,
+      loaded.quizHistory,
+      loaded.questionSequence,
+    );
+  } catch (error) {
+    if (error instanceof LlmRequestTimeoutError) {
+      redirect(
+        buildQuizUrl({
+          questionId: loaded.question.id,
+          from,
+          mode,
+          error: "attempt_timeout",
+        }),
+      );
+    }
+
+    redirect(
+      buildQuizUrl({
+        questionId: loaded.question.id,
+        from,
+        mode,
+        error: "attempt_save_failed",
+      }),
+    );
+  }
+
+  const shouldCreateFollowUpQuestion = loaded.existingFollowUpCount < MAX_FOLLOW_UP_QUESTIONS;
+  const followUpQuestion = shouldCreateFollowUpQuestion
+    ? buildUniqueFollowUpQuestion(
+        scoring.followupQuestion,
+        loaded.questionSequence,
+        loaded.currentQuestionBody,
+      )
+    : null;
   const attemptDelegate = (
     prisma as unknown as {
       questionAttempt?: {
@@ -327,20 +360,25 @@ export async function submitQuestionAttemptAction(formData: FormData) {
         llmCorrection: scoring.correction,
       },
     });
+    const writes: Promise<unknown>[] = [createdAttempt];
 
-    const createdFollowUpQuestion = prisma.question.create({
-      data: {
-        userId: session.user.id,
-        nodeId: loaded.question.nodeId,
-        parentQuestionId: loaded.question.id,
-        body: followUpQuestion,
-        questionType: "FOLLOW_UP",
-      },
-    });
+    if (shouldCreateFollowUpQuestion && followUpQuestion) {
+      writes.push(
+        prisma.question.create({
+          data: {
+            userId: session.user.id,
+            nodeId: loaded.question.nodeId,
+            parentQuestionId: loaded.question.id,
+            body: followUpQuestion,
+            questionType: "FOLLOW_UP",
+          },
+        }),
+      );
+    }
 
-    await Promise.all([createdAttempt, createdFollowUpQuestion]);
+    await Promise.all(writes);
 
-    if (loaded.question.questionType === "MAIN") {
+    if (isInitialMainQuestionAttempt) {
       await upsertReviewStateFromAttempt({
         userId: session.user.id,
         questionId: loaded.question.id,

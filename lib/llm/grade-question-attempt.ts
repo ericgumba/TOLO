@@ -1,3 +1,5 @@
+import { fetchWithLlmTimeout, LlmRequestTimeoutError } from "@/lib/llm/request";
+
 type GradeResult = {
   score: number;
   feedback: string;
@@ -44,6 +46,7 @@ export async function gradeQuestionAttempt(
   const model = process.env.OPENAI_GRADING_MODEL || "gpt-4o-mini";
 
   console.log("Grading attempt with model", model);
+  console.log("QuizHistory", quizHistory);
 
   if (!apiKey) {
     return fallbackGrade();
@@ -63,7 +66,7 @@ export async function gradeQuestionAttempt(
     const existingQuestionsText =
       existingQuestions.length > 0 ? existingQuestions.map((q, index) => `${index + 1}. ${q}`).join("\n") : "None";
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetchWithLlmTimeout("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -94,7 +97,7 @@ export async function gradeQuestionAttempt(
               "- a \"how\" question (mechanism)\n" +
               "- a scenario-based question (application)\n" +
               "- a comparison/tradeoff question\n\n" +
-              "Avoid generic questions. Try to aim for scenario-based questions. The question should require thinking, not recall.",
+              "Avoid generic questions. The question should require thinking, not recall.",
           },
           {
             role: "user",
@@ -144,7 +147,11 @@ export async function gradeQuestionAttempt(
           ? parsed.followupQuestion.trim()
           : "Can you explain the key concept your answer is still missing?",
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof LlmRequestTimeoutError) {
+      throw error;
+    }
+
     return fallbackGrade();
   }
 }

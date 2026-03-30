@@ -1,4 +1,5 @@
-import { requestQuestionHintAction, submitQuestionAttemptAction } from "@/app/actions/quiz";
+import { submitQuestionAttemptAction } from "@/app/actions/quiz";
+import { QuizFormButtons } from "@/app/components/quiz/quiz-form-buttons";
 
 type AnswerCardProps = {
   questionId: string;
@@ -36,23 +37,7 @@ export function AnswerCard({ questionId, from, mode, answer, editable, hints = [
           placeholder="Write your answer here"
           required
         />
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="submit"
-            formAction={requestQuestionHintAction}
-            formNoValidate
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={hints.length >= 3}
-          >
-            Hint
-          </button>
-          <button
-            type="submit"
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
-          >
-            Submit
-          </button>
-        </div>
+        <QuizFormButtons hintCount={hints.length} />
         {hints.length > 0 ? (
           <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Hints</p>

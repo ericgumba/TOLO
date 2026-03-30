@@ -2,6 +2,7 @@ type StatusBannersProps = {
   submitted: boolean;
   reset: boolean;
   saveError: boolean;
+  attemptTimedOut: boolean;
   hintError: boolean;
   hintLimitReached: boolean;
   llmLimitReached: boolean;
@@ -11,11 +12,12 @@ export function StatusBanners({
   submitted,
   reset,
   saveError,
+  attemptTimedOut,
   hintError,
   hintLimitReached,
   llmLimitReached,
 }: StatusBannersProps) {
-  if (!submitted && !reset && !saveError && !hintError && !hintLimitReached && !llmLimitReached) {
+  if (!submitted && !reset && !saveError && !attemptTimedOut && !hintError && !hintLimitReached && !llmLimitReached) {
     return null;
   }
 
@@ -36,6 +38,12 @@ export function StatusBanners({
       {saveError ? (
         <section className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           Could not save/reset attempt. Run latest Prisma migration and retry.
+        </section>
+      ) : null}
+
+      {attemptTimedOut ? (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Grading took too long, so this answer was not saved. Please retry.
         </section>
       ) : null}
 

@@ -6,6 +6,9 @@ type StatusBannersProps = {
   hintError: boolean;
   hintLimitReached: boolean;
   llmLimitReached: boolean;
+  addedCount: number;
+  skippedCount: number;
+  generatedQuestionAddError: boolean;
 };
 
 export function StatusBanners({
@@ -16,8 +19,22 @@ export function StatusBanners({
   hintError,
   hintLimitReached,
   llmLimitReached,
+  addedCount,
+  skippedCount,
+  generatedQuestionAddError,
 }: StatusBannersProps) {
-  if (!submitted && !reset && !saveError && !attemptTimedOut && !hintError && !hintLimitReached && !llmLimitReached) {
+  if (
+    !submitted &&
+    !reset &&
+    !saveError &&
+    !attemptTimedOut &&
+    !hintError &&
+    !hintLimitReached &&
+    !llmLimitReached &&
+    addedCount === 0 &&
+    skippedCount === 0 &&
+    !generatedQuestionAddError
+  ) {
     return null;
   }
 
@@ -25,7 +42,7 @@ export function StatusBanners({
     <>
       {submitted ? (
         <section className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-          Attempt saved.
+          Attempt saved. Review suggestions are ready below.
         </section>
       ) : null}
 
@@ -47,6 +64,19 @@ export function StatusBanners({
         </section>
       ) : null}
 
+      {addedCount > 0 || skippedCount > 0 ? (
+        <section
+          className={`rounded-xl px-4 py-3 text-sm ${
+            skippedCount > 0
+              ? "border border-amber-200 bg-amber-50 text-amber-800"
+              : "border border-green-200 bg-green-50 text-green-800"
+          }`}
+        >
+          Added {addedCount} {addedCount === 1 ? "question" : "questions"} to this node. Skipped {skippedCount}{" "}
+          {skippedCount === 1 ? "duplicate" : "duplicates"}.
+        </section>
+      ) : null}
+
       {hintLimitReached ? (
         <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           You have reached the maximum of 3 hints for this active question.
@@ -62,6 +92,12 @@ export function StatusBanners({
       {hintError ? (
         <section className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           Could not generate hint. Please retry.
+        </section>
+      ) : null}
+
+      {generatedQuestionAddError ? (
+        <section className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          Could not add the suggested question. Please retry.
         </section>
       ) : null}
     </>

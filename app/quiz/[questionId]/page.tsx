@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 
+import { auth } from "@/auth";
+import { QuizBody } from "@/app/components/quiz/quiz-body";
 import { QuizHeader } from "@/app/components/quiz/quiz-header";
 import { StatusBanners } from "@/app/components/quiz/status-banners";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { MAX_FOLLOW_UP_QUESTIONS } from "@/lib/quiz/constants";
-import { QuizBody } from "@/app/components/quiz/quiz-body";
+import { getGeneratedQuestionSuggestionsFromFields } from "@/lib/quiz/generated-questions";
 
 type QuizPageProps = {
   params: Promise<{
@@ -19,9 +19,24 @@ type QuizPageProps = {
     hint1?: string;
     hint2?: string;
     hint3?: string;
+    generated1?: string;
+    generated2?: string;
+    generated3?: string;
+    added?: string;
+    skipped?: string;
     error?: string;
   }>;
 };
+
+function parseCount(value?: string): number {
+  const numeric = Number(value);
+
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return 0;
+  }
+
+  return Math.floor(numeric);
+}
 
 export default async function QuizPage({ params, searchParams }: QuizPageProps) {
   const session = await auth();
@@ -135,9 +150,12 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
   const mode = typeof query.mode === "string" ? query.mode : undefined;
   const submitted = query.submitted === "1";
   const reset = query.reset === "1";
+  const generatedQuestions = getGeneratedQuestionSuggestionsFromFields(query);
   const activeHints = [query.hint1, query.hint2, query.hint3].filter(
     (hint): hint is string => typeof hint === "string" && hint.trim().length > 0,
   );
+  const addedCount = parseCount(query.added);
+  const skippedCount = parseCount(query.skipped);
   const saveError =
     query.error === "attempt_model_unavailable" ||
     query.error === "attempt_save_failed" ||
@@ -146,6 +164,7 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
   const hintError = query.error === "hint_generation_failed";
   const hintLimitReached = query.error === "hint_limit_reached";
   const llmLimitReached = query.error === "llm_daily_limit_reached";
+  const generatedQuestionAddError = query.error === "generated_question_add_failed";
   const attemptDelegate = (
     prisma as unknown as {
       questionAttempt?: {
@@ -167,53 +186,27 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
     llmCorrection: string;
     answeredAt: Date;
   }> = [];
-  let followUpQuestions: Array<{
-    id: string;
-    body: string;
-    createdAt: Date;
-  }> = [];
 
   if (attemptDelegate) {
     try {
-      const [attemptRows, followUpRows] = await Promise.all([
-        attemptDelegate.findMany({
-          where: {
-            userId: session.user.id,
-            questionId: question.id,
-          },
-          orderBy: {
-            answeredAt: "asc",
-          },
-          select: {
-            userAnswer: true,
-            llmScore: true,
-            llmFeedback: true,
-            llmCorrection: true,
-            answeredAt: true,
-          },
-        }),
-        prisma.question.findMany({
-          where: {
-            userId: session.user.id,
-            parentQuestionId: question.id,
-            questionType: "FOLLOW_UP",
-          },
-          orderBy: {
-            createdAt: "asc",
-          },
-          take: MAX_FOLLOW_UP_QUESTIONS,
-          select: {
-            id: true,
-            body: true,
-            createdAt: true,
-          },
-        }),
-      ]);
-      attempts = attemptRows;
-      followUpQuestions = followUpRows;
+      attempts = await attemptDelegate.findMany({
+        where: {
+          userId: session.user.id,
+          questionId: question.id,
+        },
+        orderBy: {
+          answeredAt: "asc",
+        },
+        select: {
+          userAnswer: true,
+          llmScore: true,
+          llmFeedback: true,
+          llmCorrection: true,
+          answeredAt: true,
+        },
+      });
     } catch {
       attempts = [];
-      followUpQuestions = [];
     }
   }
 
@@ -226,7 +219,7 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
         from={from}
         mode={mode}
         attempts={attempts}
-        followUpQuestions={followUpQuestions}
+        generatedQuestions={generatedQuestions}
         activeHints={activeHints}
       />
       <StatusBanners
@@ -237,6 +230,9 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
         hintError={hintError}
         hintLimitReached={hintLimitReached}
         llmLimitReached={llmLimitReached}
+        addedCount={addedCount}
+        skippedCount={skippedCount}
+        generatedQuestionAddError={generatedQuestionAddError}
       />
     </main>
   );

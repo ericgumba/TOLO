@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { AnswerCard } from "@/app/components/quiz/answer-card";
 import { FeedbackCard } from "@/app/components/quiz/feedback-card";
+import { GeneratedQuestionSuggestions } from "@/app/components/quiz/generated-question-suggestions";
 import { QuestionCard } from "@/app/components/quiz/question-card";
-import { getQuizProgressState } from "@/lib/quiz/progression";
 
 type QuizBodyProps = {
   questionId: string;
@@ -16,21 +16,12 @@ type QuizBodyProps = {
     llmCorrection: string;
     answeredAt: Date;
   }>;
-  followUpQuestions: Array<{
-    id: string;
-    body: string;
-    createdAt: Date;
-  }>;
+  generatedQuestions: string[];
   activeHints: string[];
 };
-export function QuizBody({ questionId, questionBody, from, mode, attempts, followUpQuestions, activeHints }: QuizBodyProps) {
-  const segmentQuestionBodies = [questionBody, ...followUpQuestions.map((question) => question.body)];
-  const progressState = getQuizProgressState({
-    attemptsCount: attempts.length,
-    totalQuestionCount: segmentQuestionBodies.length,
-    followUpCount: followUpQuestions.length,
-  });
-  const activeQuestionBody = segmentQuestionBodies[progressState.activeQuestionIndex] ?? questionBody;
+
+export function QuizBody({ questionId, questionBody, from, mode, attempts, generatedQuestions, activeHints }: QuizBodyProps) {
+  const hasSavedAttempt = attempts.length > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -38,7 +29,7 @@ export function QuizBody({ questionId, questionBody, from, mode, attempts, follo
         <div key={`${attempt.answeredAt.toISOString()}-${index}`} className="flex flex-col gap-4">
           <QuestionCard
             questionId={questionId}
-            questionBody={segmentQuestionBodies[index] ?? questionBody}
+            questionBody={questionBody}
             from={from}
             mode={mode}
             canReset={index === 0}
@@ -55,15 +46,11 @@ export function QuizBody({ questionId, questionBody, from, mode, attempts, follo
         </div>
       ))}
 
-      {progressState.isComplete ? (
-        <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900">
-          <p className="font-semibold">Quiz complete</p>
-        </section>
-      ) : (
+      {hasSavedAttempt ? null : (
         <div className="flex flex-col gap-4">
           <QuestionCard
             questionId={questionId}
-            questionBody={activeQuestionBody}
+            questionBody={questionBody}
             from={from}
             mode={mode}
             canReset={false}
@@ -78,6 +65,15 @@ export function QuizBody({ questionId, questionBody, from, mode, attempts, follo
           <FeedbackCard feedback={null} />
         </div>
       )}
+
+      {hasSavedAttempt && generatedQuestions.length > 0 ? (
+        <GeneratedQuestionSuggestions
+          questionId={questionId}
+          from={from}
+          mode={mode}
+          questions={generatedQuestions}
+        />
+      ) : null}
 
       <Link href={from} className="self-start rounded-md border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-100">
         Next Question

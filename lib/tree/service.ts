@@ -11,6 +11,16 @@ export type TreeNode = {
   children: TreeNode[];
 };
 
+export type NodeGenerationContext = {
+  targetNode: {
+    id: string;
+    title: string;
+    level: NodeLevel;
+  };
+  targetLabel: string;
+  scopeNodeIds: string[];
+};
+
 export async function getTreeForUser(userId: string): Promise<TreeNode[]> {
   const nodes = await prisma.node.findMany({
     where: { userId },
@@ -184,4 +194,73 @@ export async function getTopicTreeForUser(
   }
 
   return { subject, topic };
+}
+
+export async function getNodeGenerationContextForUser(
+  nodeId: string,
+  userId: string,
+): Promise<NodeGenerationContext | null> {
+  const nodes = await prisma.node.findMany({
+    where: {
+      userId,
+    },
+    orderBy: [{ createdAt: "asc" }],
+    select: {
+      id: true,
+      title: true,
+      level: true,
+      parentId: true,
+    },
+  });
+
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const targetNode = byId.get(nodeId);
+
+  if (!targetNode) {
+    return null;
+  }
+
+  const childIdsByParentId = new Map<string | null, string[]>();
+  for (const node of nodes) {
+    const key = node.parentId ?? null;
+    const existing = childIdsByParentId.get(key) ?? [];
+    existing.push(node.id);
+    childIdsByParentId.set(key, existing);
+  }
+
+  const pathSegments: string[] = [];
+  let currentNode = targetNode;
+  while (currentNode) {
+    pathSegments.unshift(currentNode.title);
+    currentNode = currentNode.parentId ? byId.get(currentNode.parentId) ?? null : null;
+  }
+
+  const queue = [targetNode.id];
+  const scopeNodeIds = new Set<string>([targetNode.id]);
+
+  while (queue.length > 0) {
+    const currentId = queue.shift();
+    if (!currentId) {
+      continue;
+    }
+
+    for (const childId of childIdsByParentId.get(currentId) ?? []) {
+      if (scopeNodeIds.has(childId)) {
+        continue;
+      }
+
+      scopeNodeIds.add(childId);
+      queue.push(childId);
+    }
+  }
+
+  return {
+    targetNode: {
+      id: targetNode.id,
+      title: targetNode.title,
+      level: targetNode.level,
+    },
+    targetLabel: pathSegments.join(" : "),
+    scopeNodeIds: Array.from(scopeNodeIds),
+  };
 }

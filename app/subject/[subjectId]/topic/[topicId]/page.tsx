@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { createNodeAction } from "@/app/actions/nodes";
 import { createQuestionAction } from "@/app/actions/questions";
+import { QuestionGeneratorPanel } from "@/app/components/question-generator-panel";
 import { QuestionListItem } from "@/app/components/question-list-item";
 import { SubjectTocSidebar } from "@/app/components/subject-toc-sidebar";
 import { auth } from "@/auth";
@@ -40,6 +41,9 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
     : null;
   const activeNodeId = selectedSubtopic?.id ?? topic.id;
   const activeNodeLabel = selectedSubtopic ? `subtopic "${selectedSubtopic.title}"` : `topic "${topic.title}"`;
+  const generatorTargetLabel = selectedSubtopic
+    ? `${subject.title} : ${topic.title} : ${selectedSubtopic.title}`
+    : `${subject.title} : ${topic.title}`;
   const routePath = `/subject/${subjectId}/topic/${topicId}`;
   const returnToPath = selectedSubtopic ? `${routePath}?subtopic=${selectedSubtopic.id}` : routePath;
   const nodeIds = selectedSubtopic
@@ -227,6 +231,8 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
               </button>
             </form>
           </section>
+
+          <QuestionGeneratorPanel nodeId={activeNodeId} targetLabel={generatorTargetLabel} returnTo={returnToPath} />
 
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Questions at this {selectedSubtopic ? "subtopic" : "topic"}</h2>

@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isValidElement, type ReactNode } from "react";
 
 const {
   authMock,
   redirectMock,
   prismaMock,
+  quizBodyMock,
 } = vi.hoisted(() => ({
   authMock: vi.fn(),
   redirectMock: vi.fn((location: string) => {
@@ -26,6 +28,7 @@ const {
     },
     $transaction: vi.fn(),
   },
+  quizBodyMock: vi.fn(() => null),
 }));
 
 vi.mock("@/auth", () => ({
@@ -45,7 +48,7 @@ vi.mock("@/app/components/quiz/quiz-header", () => ({
 }));
 
 vi.mock("@/app/components/quiz/quiz-body", () => ({
-  QuizBody: () => null,
+  QuizBody: quizBodyMock,
 }));
 
 vi.mock("@/app/components/quiz/status-banners", () => ({
@@ -53,6 +56,27 @@ vi.mock("@/app/components/quiz/status-banners", () => ({
 }));
 
 import QuizPage from "@/app/quiz/[questionId]/page";
+
+function collectElements(node: ReactNode, predicate: (value: ReactNode) => boolean, results: ReactNode[] = []): ReactNode[] {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      collectElements(child, predicate, results);
+    }
+
+    return results;
+  }
+
+  if (!isValidElement(node)) {
+    return results;
+  }
+
+  if (predicate(node)) {
+    results.push(node);
+  }
+
+  collectElements(node.props.children, predicate, results);
+  return results;
+}
 
 describe("QuizPage", () => {
   const userId = "c12345678901234567890123";
@@ -132,5 +156,38 @@ describe("QuizPage", () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
     expect(prismaMock.questionAttempt.deleteMany).not.toHaveBeenCalled();
     expect(prismaMock.question.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("passes generated MAIN-question suggestions to the quiz body from query params", async () => {
+    prismaMock.questionAttempt.findMany.mockResolvedValue([
+      {
+        userAnswer: "Saved answer",
+        llmScore: 85,
+        llmFeedback: "Nice work.",
+        llmCorrection: "Tighten one detail.",
+        answeredAt: new Date("2026-03-30T11:00:00.000Z"),
+      },
+    ]);
+
+    const tree = await QuizPage({
+      params: Promise.resolve({ questionId }),
+      searchParams: Promise.resolve({
+        from: `/subject/${nodeId}`,
+        submitted: "1",
+        generated1: "Generated question one?",
+        generated2: "Generated question two?",
+        generated3: "Generated question three?",
+      }),
+    });
+
+    const quizBodyElement = collectElements(tree, (value) => isValidElement(value) && value.type === quizBodyMock)[0];
+
+    expect(isValidElement(quizBodyElement)).toBe(true);
+    expect(quizBodyElement?.props.generatedQuestions).toEqual([
+      "Generated question one?",
+      "Generated question two?",
+      "Generated question three?",
+    ]);
+    expect(prismaMock.question.findMany).not.toHaveBeenCalled();
   });
 });

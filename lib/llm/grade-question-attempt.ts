@@ -1,10 +1,11 @@
 import { fetchWithLlmTimeout, LlmRequestTimeoutError } from "@/lib/llm/request";
+import { sanitizeGeneratedQuestionSuggestions } from "@/lib/quiz/generated-questions";
 
 type GradeResult = {
   score: number;
   feedback: string;
   correction: string;
-  followupQuestion: string;
+  generatedQuestions: string[];
 };
 
 type QuestionContextNode = {
@@ -26,12 +27,12 @@ function clampScore(value: unknown): number {
   return Math.max(1, Math.min(100, Math.round(numeric)));
 }
 
-function fallbackGrade(): GradeResult {
+function fallbackGrade(question: string, existingQuestions: string[] = []): GradeResult {
   return {
     score: 1,
     feedback: "LLM grading is unavailable.",
     correction: "No correction generated because LLM grading is unavailable.",
-    followupQuestion: "What key concept from this question is your answer missing?",
+    generatedQuestions: sanitizeGeneratedQuestionSuggestions([], question, existingQuestions),
   };
 }
 
@@ -45,11 +46,8 @@ export async function gradeQuestionAttempt(
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_GRADING_MODEL || "gpt-4o-mini";
 
-  console.log("Grading attempt with model", model);
-  console.log("QuizHistory", quizHistory);
-
   if (!apiKey) {
-    return fallbackGrade();
+    return fallbackGrade(question, existingQuestions);
   }
 
   try {
@@ -85,19 +83,16 @@ export async function gradeQuestionAttempt(
               "- score (integer 1..100)\n" +
               "- feedback\n" +
               "- correction\n" +
-              "- followupQuestion\n\n" +
+              "- generatedQuestions (array of exactly 3 strings)\n\n" +
               "The student's answer does not need to be detailed.\n\n" +
-              "If the answer is incomplete or incorrect:\n" +
-              "- Provide constructive feedback and a correction\n" +
-              "- Generate a guiding follow-up question that helps the student reach the correct understanding\n\n" +
-              "If the answer is mostly correct:\n" +
-              "- Generate a deeper follow-up question that expands understanding\n\n" +
-              "The follow-up question must be ONE of:\n" +
-              "- a \"why\" question (causal understanding)\n" +
-              "- a \"how\" question (mechanism)\n" +
-              "- a scenario-based question (application)\n" +
-              "- a comparison/tradeoff question\n\n" +
-              "Avoid generic questions. The question should require thinking, not recall.",
+              "Always generate exactly 3 distinct candidate MAIN questions for the same node/topic.\n" +
+              "These are not follow-up prompts in a chain. They should each stand alone as future quiz questions.\n\n" +
+              "Question rules:\n" +
+              "- Keep each question concise and specific.\n" +
+              "- Prefer understanding, explanation, example, application, or comparison questions.\n" +
+              "- Avoid trivia, source-attribution questions, and generic wording.\n" +
+              "- Do not repeat or lightly paraphrase any existing question.\n" +
+              "- The questions should be answerable from the same topic area as the current question.",
           },
           {
             role: "user",
@@ -107,7 +102,7 @@ export async function gradeQuestionAttempt(
               `Already asked questions:\n${existingQuestionsText}\n\n` +
               `Question: ${question}\n\n` +
               `Student answer: ${answer}\n\n` +
-              "Generate a new follow-up question that asks about a missing concept and does not repeat wording or meaning of already asked questions.\n\n" +
+              "Generate 3 candidate MAIN questions for future study that fit this same topic and do not repeat wording or meaning of existing questions.\n\n" +
               "Return JSON only.",
           },
         ],
@@ -115,7 +110,7 @@ export async function gradeQuestionAttempt(
     });
 
     if (!response.ok) {
-      return fallbackGrade();
+      return fallbackGrade(question, existingQuestions);
     }
 
     const payload = (await response.json()) as {
@@ -128,30 +123,27 @@ export async function gradeQuestionAttempt(
 
     const content = payload.choices?.[0]?.message?.content;
     if (!content) {
-      return fallbackGrade();
+      return fallbackGrade(question, existingQuestions);
     }
 
     const parsed = JSON.parse(content) as {
       score?: unknown;
       feedback?: unknown;
       correction?: unknown;
-      followupQuestion?: unknown;
+      generatedQuestions?: unknown;
     };
 
     return {
       score: clampScore(parsed.score),
       feedback: typeof parsed.feedback === "string" ? parsed.feedback : "Feedback unavailable.",
       correction: typeof parsed.correction === "string" ? parsed.correction : "Correction unavailable.",
-      followupQuestion:
-        typeof parsed.followupQuestion === "string" && parsed.followupQuestion.trim().length > 0
-          ? parsed.followupQuestion.trim()
-          : "Can you explain the key concept your answer is still missing?",
+      generatedQuestions: sanitizeGeneratedQuestionSuggestions(parsed.generatedQuestions, question, existingQuestions),
     };
   } catch (error) {
     if (error instanceof LlmRequestTimeoutError) {
       throw error;
     }
 
-    return fallbackGrade();
+    return fallbackGrade(question, existingQuestions);
   }
 }

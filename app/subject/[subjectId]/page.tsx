@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { createNodeAction } from "@/app/actions/nodes";
 import { createQuestionAction } from "@/app/actions/questions";
+import { QuestionGeneratorPanel } from "@/app/components/question-generator-panel";
 import { QuestionListItem } from "@/app/components/question-list-item";
 import { SubjectTocSidebar } from "@/app/components/subject-toc-sidebar";
 import { auth } from "@/auth";
@@ -196,6 +197,8 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
               </button>
             </form>
           </section>
+
+          <QuestionGeneratorPanel nodeId={subject.id} targetLabel={subject.title} returnTo={`/subject/${subject.id}`} />
 
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Questions at this subject</h2>

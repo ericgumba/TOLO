@@ -34,6 +34,7 @@ enum ReviewStatus {
 enum LlmUsageType {
   GRADE
   HINT
+  QUESTION_GENERATION
 }
 
 model User {

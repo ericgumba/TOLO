@@ -114,10 +114,13 @@ describe("submitQuestionAttemptAction", () => {
     prismaMock.questionAttempt.create.mockResolvedValue({ id: "attempt-1" });
     prismaMock.question.create.mockResolvedValue({ id: "question-created-1" });
     gradeQuestionAttemptMock.mockResolvedValue({
-      score: 82,
-      feedback: "Good answer.",
-      correction: "No correction needed.",
-      generatedQuestions: ["Generated question one?", "Generated question two?", "Generated question three?"],
+      ok: true,
+      value: {
+        score: 82,
+        feedback: "Good answer.",
+        correction: "No correction needed.",
+        generatedQuestions: ["Generated question one?", "Generated question two?", "Generated question three?"],
+      },
     });
     assertCanUseLlmMock.mockResolvedValue(undefined);
     logLlmUsageMock.mockResolvedValue(undefined);
@@ -160,6 +163,26 @@ describe("submitQuestionAttemptAction", () => {
 
     expect(upsertReviewStateFromAttemptMock).not.toHaveBeenCalled();
     expect(prismaMock.question.create).not.toHaveBeenCalled();
+  });
+
+  it("does not log usage when grading fails", async () => {
+    gradeQuestionAttemptMock.mockResolvedValue({
+      ok: false,
+      reason: "http_error",
+    });
+
+    await expect(
+      submitQuestionAttemptAction(
+        buildFormData({
+          questionId,
+          answer: "First answer",
+          from: `/subject/${nodeId}`,
+        }),
+      ),
+    ).rejects.toThrow(`REDIRECT:/quiz/${questionId}?from=%2Fsubject%2F${nodeId}&error=attempt_provider_http_error`);
+
+    expect(logLlmUsageMock).not.toHaveBeenCalled();
+    expect(prismaMock.questionAttempt.create).not.toHaveBeenCalled();
   });
 
   it("adds one generated MAIN question and keeps the remaining suggestions in the redirect", async () => {

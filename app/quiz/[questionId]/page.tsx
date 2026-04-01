@@ -161,7 +161,19 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
     query.error === "attempt_save_failed" ||
     query.error === "attempt_reset_failed";
   const attemptTimedOut = query.error === "attempt_timeout";
-  const hintError = query.error === "hint_generation_failed";
+  const attemptMissingApiKey = query.error === "attempt_missing_api_key";
+  const attemptProviderHttpError = query.error === "attempt_provider_http_error";
+  const gradingError =
+    query.error === "attempt_grading_failed" ||
+    query.error === "attempt_invalid_response" ||
+    query.error === "attempt_network_error";
+  const hintTimedOut = query.error === "hint_timeout";
+  const hintMissingApiKey = query.error === "hint_missing_api_key";
+  const hintProviderHttpError = query.error === "hint_provider_http_error";
+  const hintError =
+    query.error === "hint_generation_failed" ||
+    query.error === "hint_invalid_response" ||
+    query.error === "hint_network_error";
   const hintLimitReached = query.error === "hint_limit_reached";
   const llmLimitReached = query.error === "llm_daily_limit_reached";
   const generatedQuestionAddError = query.error === "generated_question_add_failed";
@@ -227,6 +239,12 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
         reset={reset}
         saveError={saveError}
         attemptTimedOut={attemptTimedOut}
+        attemptMissingApiKey={attemptMissingApiKey}
+        attemptProviderHttpError={attemptProviderHttpError}
+        gradingError={gradingError}
+        hintTimedOut={hintTimedOut}
+        hintMissingApiKey={hintMissingApiKey}
+        hintProviderHttpError={hintProviderHttpError}
         hintError={hintError}
         hintLimitReached={hintLimitReached}
         llmLimitReached={llmLimitReached}

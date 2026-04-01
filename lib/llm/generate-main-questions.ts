@@ -1,4 +1,6 @@
+import { getOpenAiModel } from "@/lib/llm/model";
 import { fetchWithLlmTimeout, LlmRequestTimeoutError } from "@/lib/llm/request";
+import { type LlmCallResult } from "@/lib/llm/result";
 import {
   GENERATED_MAIN_QUESTION_COUNT,
   RAW_GENERATED_MAIN_QUESTION_COUNT,
@@ -13,42 +15,24 @@ type GenerateMainQuestionsInput = {
   desiredCount?: number;
 };
 
-function buildFallbackQuestions(input: GenerateMainQuestionsInput): string[] {
-  const label = input.targetLabel.trim();
-  const sourceHint = input.notes?.trim() ? ` using the provided notes: ${input.notes.trim()}` : "";
-
-  return [
-    `What is the core idea behind ${label}?`,
-    `Why does ${label} matter in practice?`,
-    `How would you explain ${label} to someone new${sourceHint}?`,
-    `What is one concrete example that clarifies ${label}?`,
-    `What tradeoffs or limitations should someone know about ${label}?`,
-    `How does ${label} connect to the broader system around it?`,
-    `What common misunderstanding appears when people study ${label}?`,
-    `How would you apply ${label} in a realistic scenario?`,
-  ];
-}
-
-export async function generateMainQuestionsForNode(input: GenerateMainQuestionsInput): Promise<string[]> {
+export async function generateMainQuestionsForNode(
+  input: GenerateMainQuestionsInput,
+): Promise<LlmCallResult<string[]>> {
   const apiKey = process.env.OPENAI_API_KEY;
-  const model =
-    process.env.OPENAI_QUESTION_GENERATION_MODEL ||
-    process.env.OPENAI_GRADING_MODEL ||
-    process.env.OPENAI_MODEL ||
-    "gpt-4o-mini";
+  const model = getOpenAiModel();
   const desiredCount = input.desiredCount ?? GENERATED_MAIN_QUESTION_COUNT;
 
   if (!apiKey) {
-    return postProcessGeneratedQuestions(buildFallbackQuestions(input), input.existingQuestions ?? []).slice(
-      0,
-      desiredCount,
-    );
+    return {
+      ok: false,
+      reason: "missing_api_key",
+    };
   }
 
   try {
     const existingQuestionsText =
-      input.existingQuestions && input.existingQuestions.length > 0
-        ? input.existingQuestions.map((question, index) => `${index + 1}. ${question}`).join("\n")
+      (input.existingQuestions ?? []).length > 0
+        ? (input.existingQuestions ?? []).map((question, index) => `${index + 1}. ${question}`).join("\n")
         : "None";
     const notesText = input.notes?.trim().length ? input.notes.trim() : "None";
 
@@ -92,10 +76,10 @@ export async function generateMainQuestionsForNode(input: GenerateMainQuestionsI
     });
 
     if (!response.ok) {
-      return postProcessGeneratedQuestions(buildFallbackQuestions(input), input.existingQuestions ?? []).slice(
-        0,
-        desiredCount,
-      );
+      return {
+        ok: false,
+        reason: "http_error",
+      };
     }
 
     const payload = (await response.json()) as {
@@ -108,23 +92,40 @@ export async function generateMainQuestionsForNode(input: GenerateMainQuestionsI
     const content = payload.choices?.[0]?.message?.content;
 
     if (!content) {
-      return postProcessGeneratedQuestions(buildFallbackQuestions(input), input.existingQuestions ?? []).slice(
-        0,
-        desiredCount,
-      );
+      return {
+        ok: false,
+        reason: "invalid_response",
+      };
     }
 
     const parsed = JSON.parse(content) as { questions?: unknown };
-
-    return postProcessGeneratedQuestions(parsed.questions, input.existingQuestions ?? []).slice(0, desiredCount);
-  } catch (error) {
-    if (error instanceof LlmRequestTimeoutError) {
-      throw error;
-    }
-
-    return postProcessGeneratedQuestions(buildFallbackQuestions(input), input.existingQuestions ?? []).slice(
+    const generatedQuestions = postProcessGeneratedQuestions(parsed.questions, input.existingQuestions ?? []).slice(
       0,
       desiredCount,
     );
+
+    if (generatedQuestions.length === 0) {
+      return {
+        ok: false,
+        reason: "invalid_response",
+      };
+    }
+
+    return {
+      ok: true,
+      value: generatedQuestions,
+    };
+  } catch (error) {
+    if (error instanceof LlmRequestTimeoutError) {
+      return {
+        ok: false,
+        reason: "timeout",
+      };
+    }
+
+    return {
+      ok: false,
+      reason: "network_error",
+    };
   }
 }

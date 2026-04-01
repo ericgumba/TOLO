@@ -20,15 +20,15 @@ describe("gradeQuestionAttempt", () => {
     vi.unstubAllGlobals();
   });
 
-  it("returns deterministic fallback suggestions when grading is unavailable", async () => {
+  it("returns an explicit failure when grading is unavailable", async () => {
     delete process.env.OPENAI_API_KEY;
 
     const result = await gradeQuestionAttempt("What is photosynthesis?", "It makes energy.");
 
-    expect(result.score).toBe(1);
-    expect(result.generatedQuestions).toHaveLength(GENERATED_QUESTION_SUGGESTION_COUNT);
-    expect(new Set(result.generatedQuestions).size).toBe(GENERATED_QUESTION_SUGGESTION_COUNT);
-    expect(result.generatedQuestions.every((question) => question.length > 0)).toBe(true);
+    expect(result).toEqual({
+      ok: false,
+      reason: "missing_api_key",
+    });
   });
 
   it("normalizes, deduplicates, and backfills generated MAIN-question suggestions", async () => {
@@ -64,12 +64,19 @@ describe("gradeQuestionAttempt", () => {
 
     const result = await gradeQuestionAttempt("What is photosynthesis?", "It converts light into chemical energy.");
 
-    expect(result.score).toBe(88);
-    expect(result.generatedQuestions).toHaveLength(GENERATED_QUESTION_SUGGESTION_COUNT);
-    expect(result.generatedQuestions[0]).toBe("Why is photosynthesis essential to ecosystems?");
-    expect(new Set(result.generatedQuestions.map((question) => question.toLowerCase())).size).toBe(
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected success result.");
+    }
+
+    expect(result.value.score).toBe(88);
+    expect(result.value.generatedQuestions).toHaveLength(GENERATED_QUESTION_SUGGESTION_COUNT);
+    expect(result.value.generatedQuestions[0]).toBe("Why is photosynthesis essential to ecosystems?");
+    expect(new Set(result.value.generatedQuestions.map((question) => question.toLowerCase())).size).toBe(
       GENERATED_QUESTION_SUGGESTION_COUNT,
     );
-    expect(result.generatedQuestions.every((question) => question.length <= MAX_GENERATED_QUESTION_LENGTH)).toBe(true);
+    expect(result.value.generatedQuestions.every((question) => question.length <= MAX_GENERATED_QUESTION_LENGTH)).toBe(
+      true,
+    );
   });
 });

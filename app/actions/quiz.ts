@@ -13,7 +13,7 @@ import {
 } from "@/lib/auth/validation";
 import { generateQuestionHint } from "@/lib/llm/generate-question-hint";
 import { gradeQuestionAttempt } from "@/lib/llm/grade-question-attempt";
-import { LlmRequestTimeoutError } from "@/lib/llm/request";
+import { type LlmCallFailureReason } from "@/lib/llm/result";
 import { assertCanUseLlm, LlmDailyLimitExceededError, logLlmUsage } from "@/lib/llm/usage-limit";
 import { prisma } from "@/lib/prisma";
 import {
@@ -69,6 +69,60 @@ function getExistingHints(input: { hint1?: string; hint2?: string; hint3?: strin
   return [input.hint1, input.hint2, input.hint3].filter(
     (hint): hint is string => typeof hint === "string" && hint.trim().length > 0,
   );
+}
+
+function mapGradingFailureReasonToErrorCode(
+  reason: LlmCallFailureReason,
+):
+  | "attempt_timeout"
+  | "attempt_missing_api_key"
+  | "attempt_provider_http_error"
+  | "attempt_invalid_response"
+  | "attempt_network_error" {
+  if (reason === "timeout") {
+    return "attempt_timeout";
+  }
+
+  if (reason === "missing_api_key") {
+    return "attempt_missing_api_key";
+  }
+
+  if (reason === "http_error") {
+    return "attempt_provider_http_error";
+  }
+
+  if (reason === "invalid_response") {
+    return "attempt_invalid_response";
+  }
+
+  return "attempt_network_error";
+}
+
+function mapHintFailureReasonToErrorCode(
+  reason: LlmCallFailureReason,
+):
+  | "hint_timeout"
+  | "hint_missing_api_key"
+  | "hint_provider_http_error"
+  | "hint_invalid_response"
+  | "hint_network_error" {
+  if (reason === "timeout") {
+    return "hint_timeout";
+  }
+
+  if (reason === "missing_api_key") {
+    return "hint_missing_api_key";
+  }
+
+  if (reason === "http_error") {
+    return "hint_provider_http_error";
+  }
+
+  if (reason === "invalid_response") {
+    return "hint_invalid_response";
+  }
+
+  return "hint_network_error";
 }
 
 function buildQuizUrl(input: {
@@ -372,36 +426,24 @@ export async function submitQuestionAttemptAction(formData: FormData) {
     );
   }
 
-  let scoring;
-  try {
-    scoring = await gradeQuestionAttempt(
-      loaded.currentQuestionBody,
-      parsed.data.answer,
-      loaded.context,
-      loaded.quizHistory,
-      loaded.existingMainQuestionBodies,
-    );
-  } catch (error) {
-    if (error instanceof LlmRequestTimeoutError) {
-      redirect(
-        buildQuizUrl({
-          questionId: loaded.question.id,
-          from,
-          mode,
-          error: "attempt_timeout",
-        }),
-      );
-    }
-
+  const scoringResult = await gradeQuestionAttempt(
+    loaded.currentQuestionBody,
+    parsed.data.answer,
+    loaded.context,
+    loaded.quizHistory,
+    loaded.existingMainQuestionBodies,
+  );
+  if (!scoringResult.ok) {
     redirect(
       buildQuizUrl({
         questionId: loaded.question.id,
         from,
         mode,
-        error: "attempt_save_failed",
+        error: mapGradingFailureReasonToErrorCode(scoringResult.reason),
       }),
     );
   }
+  const scoring = scoringResult.value;
 
   const attemptDelegate = getAttemptDelegate();
 
@@ -667,15 +709,26 @@ export async function requestQuestionHintAction(formData: FormData) {
   }
 
   const hintLevel = (existingHints.length + 1) as 1 | 2 | 3;
-  const hint = await generateQuestionHint({
+  const hintResult = await generateQuestionHint({
     question: loaded.currentQuestionBody,
     context: loaded.context,
     quizHistory: loaded.quizHistory,
     hintLevel,
     existingHints,
   });
+  if (!hintResult.ok) {
+    redirect(
+      buildQuizUrl({
+        questionId: loaded.question.id,
+        from,
+        mode,
+        hints: existingHints,
+        error: mapHintFailureReasonToErrorCode(hintResult.reason),
+      }),
+    );
+  }
 
-  const nextHint = hint.trim();
+  const nextHint = hintResult.value.trim();
   if (nextHint.length === 0) {
     redirect(
       buildQuizUrl({
@@ -683,7 +736,7 @@ export async function requestQuestionHintAction(formData: FormData) {
         from,
         mode,
         hints: existingHints,
-        error: "hint_generation_failed",
+        error: "hint_invalid_response",
       }),
     );
   }

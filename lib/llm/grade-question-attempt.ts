@@ -1,4 +1,6 @@
+import { getOpenAiModel } from "@/lib/llm/model";
 import { fetchWithLlmTimeout, LlmRequestTimeoutError } from "@/lib/llm/request";
+import { type LlmCallResult } from "@/lib/llm/result";
 import { sanitizeGeneratedQuestionSuggestions } from "@/lib/quiz/generated-questions";
 
 type GradeResult = {
@@ -27,27 +29,21 @@ function clampScore(value: unknown): number {
   return Math.max(1, Math.min(100, Math.round(numeric)));
 }
 
-function fallbackGrade(question: string, existingQuestions: string[] = []): GradeResult {
-  return {
-    score: 1,
-    feedback: "LLM grading is unavailable.",
-    correction: "No correction generated because LLM grading is unavailable.",
-    generatedQuestions: sanitizeGeneratedQuestionSuggestions([], question, existingQuestions),
-  };
-}
-
 export async function gradeQuestionAttempt(
   question: string,
   answer: string,
   context: QuestionContextNode[] = [],
   quizHistory: QuizHistoryItem[] = [],
   existingQuestions: string[] = [],
-): Promise<GradeResult> {
+): Promise<LlmCallResult<GradeResult>> {
   const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_GRADING_MODEL || "gpt-4o-mini";
+  const model = getOpenAiModel();
 
   if (!apiKey) {
-    return fallbackGrade(question, existingQuestions);
+    return {
+      ok: false,
+      reason: "missing_api_key",
+    };
   }
 
   try {
@@ -110,7 +106,10 @@ export async function gradeQuestionAttempt(
     });
 
     if (!response.ok) {
-      return fallbackGrade(question, existingQuestions);
+      return {
+        ok: false,
+        reason: "http_error",
+      };
     }
 
     const payload = (await response.json()) as {
@@ -123,7 +122,10 @@ export async function gradeQuestionAttempt(
 
     const content = payload.choices?.[0]?.message?.content;
     if (!content) {
-      return fallbackGrade(question, existingQuestions);
+      return {
+        ok: false,
+        reason: "invalid_response",
+      };
     }
 
     const parsed = JSON.parse(content) as {
@@ -133,17 +135,40 @@ export async function gradeQuestionAttempt(
       generatedQuestions?: unknown;
     };
 
+    if (typeof parsed.feedback !== "string" || parsed.feedback.trim().length === 0) {
+      return {
+        ok: false,
+        reason: "invalid_response",
+      };
+    }
+
+    if (typeof parsed.correction !== "string" || parsed.correction.trim().length === 0) {
+      return {
+        ok: false,
+        reason: "invalid_response",
+      };
+    }
+
     return {
+      ok: true,
+      value: {
       score: clampScore(parsed.score),
-      feedback: typeof parsed.feedback === "string" ? parsed.feedback : "Feedback unavailable.",
-      correction: typeof parsed.correction === "string" ? parsed.correction : "Correction unavailable.",
+      feedback: parsed.feedback.trim(),
+      correction: parsed.correction.trim(),
       generatedQuestions: sanitizeGeneratedQuestionSuggestions(parsed.generatedQuestions, question, existingQuestions),
+      },
     };
   } catch (error) {
     if (error instanceof LlmRequestTimeoutError) {
-      throw error;
+      return {
+        ok: false,
+        reason: "timeout",
+      };
     }
 
-    return fallbackGrade(question, existingQuestions);
+    return {
+      ok: false,
+      reason: "network_error",
+    };
   }
 }

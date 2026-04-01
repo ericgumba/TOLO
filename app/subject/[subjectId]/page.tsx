@@ -2,12 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createNodeAction } from "@/app/actions/nodes";
-import { createQuestionAction } from "@/app/actions/questions";
+import { CreateQuestionSection } from "@/app/components/create-question-section";
+import { GroupedQuestionList } from "@/app/components/grouped-question-list";
 import { QuestionGeneratorPanel } from "@/app/components/question-generator-panel";
-import { QuestionListItem } from "@/app/components/question-list-item";
+import { ReviewLaunchCard } from "@/app/components/review-launch-card";
 import { SubjectTocSidebar } from "@/app/components/subject-toc-sidebar";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { getDueReviewCount, getDueReviewQuestions } from "@/lib/review/service";
 import { getSubjectTreeForUser } from "@/lib/tree/service";
 
 type SubjectPageProps = {
@@ -41,7 +43,10 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
       nodePathById.set(subtopic.id, `${subject.title} > ${topic.title} > ${subtopic.title}`);
     }
   }
+  const returnToPath = `/subject/${subject.id}`;
   let questionCount = 0;
+  let dueReviewCount = 0;
+  let firstDueQuestionId: string | null = null;
   let nodeQuestions: Array<{
     id: string;
     nodeId: string;
@@ -68,58 +73,72 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
   ).question;
   if (questionDelegate) {
     try {
-      questionCount = await questionDelegate.count({
-        where: {
-          userId: session.user.id,
-          questionType: "MAIN",
-          nodeId: {
-            in: nodeIds,
-          },
-        },
-      });
-      nodeQuestions = await questionDelegate.findMany({
-        where: {
-          userId: session.user.id,
-          questionType: "MAIN",
-          nodeId: {
-            in: nodeIds,
-          },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        select: {
-          id: true,
-          nodeId: true,
-          body: true,
-          attempts: {
-            where: {
-              userId: session.user.id,
-            },
-            orderBy: {
-              answeredAt: "desc",
-            },
-            take: 1,
-            select: {
-              answeredAt: true,
+      const [count, questions, dueCount, dueQuestions] = await Promise.all([
+        questionDelegate.count({
+          where: {
+            userId: session.user.id,
+            questionType: "MAIN",
+            nodeId: {
+              in: nodeIds,
             },
           },
-          reviewStates: {
-            where: {
-              userId: session.user.id,
-            },
-            take: 1,
-            select: {
-              nextReviewAt: true,
+        }),
+        questionDelegate.findMany({
+          where: {
+            userId: session.user.id,
+            questionType: "MAIN",
+            nodeId: {
+              in: nodeIds,
             },
           },
-        },
-      });
+          orderBy: {
+            createdAt: "desc",
+          },
+          select: {
+            id: true,
+            nodeId: true,
+            body: true,
+            attempts: {
+              where: {
+                userId: session.user.id,
+              },
+              orderBy: {
+                answeredAt: "desc",
+              },
+              take: 1,
+              select: {
+                answeredAt: true,
+              },
+            },
+            reviewStates: {
+              where: {
+                userId: session.user.id,
+              },
+              take: 1,
+              select: {
+                nextReviewAt: true,
+              },
+            },
+          },
+        }),
+        getDueReviewCount(session.user.id, subject.id),
+        getDueReviewQuestions(session.user.id, 1, subject.id),
+      ]);
+      questionCount = count;
+      nodeQuestions = questions;
+      dueReviewCount = dueCount;
+      firstDueQuestionId = dueQuestions[0]?.questionId ?? null;
     } catch {
       questionCount = 0;
       nodeQuestions = [];
+      dueReviewCount = 0;
+      firstDueQuestionId = null;
     }
   }
+
+  const reviewHref = firstDueQuestionId
+    ? `/quiz/${firstDueQuestionId}?mode=review&from=${encodeURIComponent(returnToPath)}`
+    : null;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-6 py-10">
@@ -151,18 +170,14 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
               <p className="mt-2 text-2xl font-semibold text-slate-900">{questionCount}</p>
               <p className="mt-1 text-xs text-slate-500">Questions across this subject tree.</p>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Needs Review</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900">0</p>
-              <p className="mt-1 text-xs text-slate-500">Review queue coming soon.</p>
-            </div>
+            <ReviewLaunchCard dueCount={dueReviewCount} reviewHref={reviewHref} scopeLabel="subject tree" />
           </section>
 
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Create Topic</h2>
             <form action={createNodeAction} className="mt-3 flex flex-col gap-2 sm:max-w-xl">
               <input type="hidden" name="parentId" value={subject.id} />
-              <input type="hidden" name="returnTo" value={`/subject/${subject.id}`} />
+              <input type="hidden" name="returnTo" value={returnToPath} />
               <input
                 required
                 name="title"
@@ -178,48 +193,24 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
             </form>
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">Create Question</h2>
-            <form action={createQuestionAction} className="mt-3 flex flex-col gap-2 sm:max-w-xl">
-              <input type="hidden" name="nodeId" value={subject.id} />
-              <input type="hidden" name="returnTo" value={`/subject/${subject.id}`} />
-              <textarea
-                required
-                name="body"
-                className="min-h-24 rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                placeholder="Write a question for this subject"
-              />
-              <button
-                type="submit"
-                className="w-fit rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
-              >
-                Add Question
-              </button>
-            </form>
-          </section>
+          <CreateQuestionSection
+            nodeId={subject.id}
+            returnTo={returnToPath}
+            placeholder="Write a question for this subject"
+          />
 
-          <QuestionGeneratorPanel nodeId={subject.id} targetLabel={subject.title} returnTo={`/subject/${subject.id}`} />
+          <QuestionGeneratorPanel nodeId={subject.id} targetLabel={subject.title} returnTo={returnToPath} />
 
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Questions at this subject</h2>
-            {nodeQuestions.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">No questions created for this subject yet.</p>
-            ) : (
-              <ul className="mt-3 flex flex-col gap-2">
-                {nodeQuestions.map((question) => (
-                  <QuestionListItem
-                    key={question.id}
-                    questionId={question.id}
-                    questionBody={question.body}
-                    questionPath={nodePathById.get(question.nodeId) ?? subject.title}
-                    returnTo={`/subject/${subject.id}`}
-                    lastAnsweredAt={question.attempts[0]?.answeredAt ?? null}
-                    nextReviewAt={question.reviewStates[0]?.nextReviewAt ?? null}
-                    now={now}
-                  />
-                ))}
-              </ul>
-            )}
+            <GroupedQuestionList
+              questions={nodeQuestions}
+              nodePathById={nodePathById}
+              fallbackPath={subject.title}
+              returnTo={returnToPath}
+              now={now}
+              emptyMessage="No questions created for this subject yet."
+            />
           </section>
 
         </div>

@@ -5,7 +5,7 @@ import { deleteQuestionAction, resetQuestionReviewStateAction } from "@/app/acti
 type QuestionListItemProps = {
   questionId: string;
   questionBody: string;
-  questionPath: string;
+  questionPath?: string;
   returnTo: string;
   lastAnsweredAt: Date | null;
   nextReviewAt: Date | null;
@@ -33,7 +33,7 @@ export function QuestionListItem({
           className="min-w-0 flex-1 rounded-md transition hover:text-slate-900"
         >
           <p>{questionBody}</p>
-          <p className="mt-1 text-xs text-slate-500">Path: {questionPath}</p>
+          {questionPath ? <p className="mt-1 text-xs text-slate-500">Path: {questionPath}</p> : null}
           <p className="mt-1 text-xs text-slate-500">
             Last answered at: {lastAnsweredAt ? lastAnsweredAt.toLocaleString() : "Never"}
           </p>

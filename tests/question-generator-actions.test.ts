@@ -91,13 +91,16 @@ describe("node question generator actions", () => {
     prismaMock.question.create.mockResolvedValue({ id: "created-question-id" });
     assertCanUseLlmMock.mockResolvedValue(undefined);
     logLlmUsageMock.mockResolvedValue(undefined);
-    generateMainQuestionsForNodeMock.mockResolvedValue([
-      "How does a process differ from a thread?",
-      "Why does process isolation matter?",
-      "How do scheduling decisions affect performance?",
-      "What tradeoffs come with kernel threads?",
-      "How would you explain context switching?",
-    ]);
+    generateMainQuestionsForNodeMock.mockResolvedValue({
+      ok: true,
+      value: [
+        "How does a process differ from a thread?",
+        "Why does process isolation matter?",
+        "How do scheduling decisions affect performance?",
+        "What tradeoffs come with kernel threads?",
+        "How would you explain context switching?",
+      ],
+    });
   });
 
   it("returns preview questions for a user-owned node and logs QUESTION_GENERATION usage", async () => {
@@ -155,6 +158,22 @@ describe("node question generator actions", () => {
     expect(logLlmUsageMock).not.toHaveBeenCalled();
     expect(state.status).toBe("error");
     expect(state.error).toContain("Daily LLM limit");
+  });
+
+  it("does not log usage when LLM generation fails", async () => {
+    generateMainQuestionsForNodeMock.mockResolvedValue({
+      ok: false,
+      reason: "http_error",
+    });
+
+    const formData = new FormData();
+    formData.set("nodeId", nodeId);
+    formData.set("returnTo", returnTo);
+
+    const state = await generateMainQuestionsPreviewAction(initialGeneratedQuestionPreviewState, formData);
+
+    expect(state.status).toBe("error");
+    expect(logLlmUsageMock).not.toHaveBeenCalled();
   });
 
   it("creates a MAIN question with initial review state when adding a generated preview question", async () => {

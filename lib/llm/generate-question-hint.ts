@@ -1,3 +1,7 @@
+import { getOpenAiModel } from "@/lib/llm/model";
+import { fetchWithLlmTimeout, LlmRequestTimeoutError } from "@/lib/llm/request";
+import { type LlmCallResult } from "@/lib/llm/result";
+
 type QuestionContextNode = {
   id: string;
   title: string;
@@ -29,25 +33,15 @@ export function getHintLevelInstruction(hintLevel: 1 | 2 | 3): string {
   return "Hint level 3: provide a strong scaffold (steps/checklist) but do not reveal the final answer.";
 }
 
-function fallbackHint(question: string, hintLevel: 1 | 2 | 3): string {
-  const questionLead = question.replace(/\s+/g, " ").trim();
-  if (hintLevel === 1) {
-    return `Start by identifying the core concept behind: "${questionLead}".`;
-  }
-
-  if (hintLevel === 2) {
-    return `Break your response into two parts: definition first, then apply it to "${questionLead}".`;
-  }
-
-  return `Use this structure: 1) define the key term, 2) explain the mechanism, 3) give one concrete example related to "${questionLead}".`;
-}
-
-export async function generateQuestionHint(input: GenerateQuestionHintInput): Promise<string> {
+export async function generateQuestionHint(input: GenerateQuestionHintInput): Promise<LlmCallResult<string>> {
   const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_HINT_MODEL || process.env.OPENAI_GRADING_MODEL || "gpt-4o-mini";
+  const model = getOpenAiModel();
 
   if (!apiKey) {
-    return fallbackHint(input.question, input.hintLevel);
+    return {
+      ok: false,
+      reason: "missing_api_key",
+    };
   }
 
   const contextText =
@@ -66,7 +60,7 @@ export async function generateQuestionHint(input: GenerateQuestionHintInput): Pr
       : "None";
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetchWithLlmTimeout("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -105,7 +99,10 @@ export async function generateQuestionHint(input: GenerateQuestionHintInput): Pr
     });
 
     if (!response.ok) {
-      return fallbackHint(input.question, input.hintLevel);
+      return {
+        ok: false,
+        reason: "http_error",
+      };
     }
 
     const payload = (await response.json()) as {
@@ -117,16 +114,35 @@ export async function generateQuestionHint(input: GenerateQuestionHintInput): Pr
     };
     const content = payload.choices?.[0]?.message?.content;
     if (!content) {
-      return fallbackHint(input.question, input.hintLevel);
+      return {
+        ok: false,
+        reason: "invalid_response",
+      };
     }
 
     const parsed = JSON.parse(content) as { hint?: unknown };
     if (typeof parsed.hint === "string" && parsed.hint.trim().length > 0) {
-      return parsed.hint.trim();
+      return {
+        ok: true,
+        value: parsed.hint.trim(),
+      };
     }
 
-    return fallbackHint(input.question, input.hintLevel);
-  } catch {
-    return fallbackHint(input.question, input.hintLevel);
+    return {
+      ok: false,
+      reason: "invalid_response",
+    };
+  } catch (error) {
+    if (error instanceof LlmRequestTimeoutError) {
+      return {
+        ok: false,
+        reason: "timeout",
+      };
+    }
+
+    return {
+      ok: false,
+      reason: "network_error",
+    };
   }
 }

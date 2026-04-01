@@ -15,38 +15,38 @@ export const loginSchema = z.object({
 
 export const nodeCreateSchema = z.object({
   title: z.string().trim().min(1).max(120),
-  parentId: z.string().cuid().optional(),
+  parentId: z.cuid().optional(),
   returnTo: z.string().startsWith("/").optional(),
 });
 
 export const nodeUpdateSchema = z.object({
-  nodeId: z.string().cuid(),
+  nodeId: z.cuid(),
   title: z.string().trim().min(1).max(120),
 });
 export const nodeDeleteSchema = z.object({
-  nodeId: z.string().cuid(),
+  nodeId: z.cuid(),
 });
 
 export const questionCreateSchema = z.object({
-  nodeId: z.string().cuid(),
+  nodeId: z.cuid(),
   body: z.string().trim().min(1).max(1000),
   returnTo: z.string().startsWith("/").optional(),
 });
 
 export const questionGenerateSchema = z.object({
-  nodeId: z.string().cuid(),
+  nodeId: z.cuid(),
   returnTo: z.string().startsWith("/").optional(),
   notes: z.string().trim().max(2000).optional(),
 });
 
 export const generatedNodeQuestionAddSchema = z.object({
-  nodeId: z.string().cuid(),
+  nodeId: z.cuid(),
   body: z.string().trim().min(1).max(1000),
   returnTo: z.string().startsWith("/").optional(),
 });
 
 export const questionSettingsSchema = z.object({
-  questionId: z.string().cuid(),
+  questionId: z.cuid(),
   returnTo: z.string().startsWith("/").optional(),
 });
 
@@ -55,20 +55,20 @@ export const questionDeleteSchema = questionSettingsSchema.extend({
 });
 
 export const questionAttemptCreateSchema = z.object({
-  questionId: z.string().cuid(),
+  questionId: z.cuid(),
   answer: z.string().trim().min(1).max(4000),
   from: z.string().startsWith("/").optional(),
   mode: z.string().trim().min(1).max(32).optional(),
 });
 
 export const questionAttemptResetSchema = z.object({
-  questionId: z.string().cuid(),
+  questionId: z.cuid(),
   from: z.string().startsWith("/").optional(),
   mode: z.string().trim().min(1).max(32).optional(),
 });
 
 export const questionHintRequestSchema = z.object({
-  questionId: z.string().cuid(),
+  questionId: z.cuid(),
   from: z.string().startsWith("/").optional(),
   mode: z.string().trim().min(1).max(32).optional(),
   hint1: z.string().trim().min(1).max(400).optional(),
@@ -79,7 +79,7 @@ export const questionHintRequestSchema = z.object({
 const generatedQuestionFieldSchema = z.string().trim().min(1).max(MAX_GENERATED_QUESTION_LENGTH).optional();
 
 export const generatedQuestionAddSchema = z.object({
-  questionId: z.string().cuid(),
+  questionId: z.cuid(),
   from: z.string().startsWith("/").optional(),
   mode: z.string().trim().min(1).max(32).optional(),
   candidateIndex: z.coerce.number().int().min(0).max(GENERATED_QUESTION_SUGGESTION_COUNT - 1),
@@ -89,7 +89,7 @@ export const generatedQuestionAddSchema = z.object({
 });
 
 export const generatedQuestionAddAllSchema = z.object({
-  questionId: z.string().cuid(),
+  questionId: z.cuid(),
   from: z.string().startsWith("/").optional(),
   mode: z.string().trim().min(1).max(32).optional(),
   generated1: generatedQuestionFieldSchema,

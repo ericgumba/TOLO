@@ -14,7 +14,7 @@ import {
   questionSettingsSchema,
 } from "@/lib/auth/validation";
 import { generateMainQuestionsForNode } from "@/lib/llm/generate-main-questions";
-import { LlmRequestTimeoutError } from "@/lib/llm/request";
+import { type LlmCallFailureReason } from "@/lib/llm/result";
 import { assertCanUseLlm, LlmDailyLimitExceededError, logLlmUsage } from "@/lib/llm/usage-limit";
 import { GENERATED_MAIN_QUESTION_COUNT } from "@/lib/questions/generation";
 import {
@@ -36,6 +36,26 @@ async function requireAuthUserId(): Promise<string> {
 
 function normalizeReturnTo(returnTo?: string): string {
   return returnTo?.startsWith("/") ? returnTo : "/dashboard";
+}
+
+function mapGenerationFailureReasonToError(reason: LlmCallFailureReason): string {
+  if (reason === "missing_api_key") {
+    return "LLM is not configured yet. Set OPENAI_API_KEY and retry.";
+  }
+
+  if (reason === "timeout") {
+    return "Question generation timed out. Please retry.";
+  }
+
+  if (reason === "http_error") {
+    return "Question generation failed because the LLM provider returned an HTTP error. Please retry. If it keeps happening, reduce notes length or question scope.";
+  }
+
+  if (reason === "invalid_response") {
+    return "LLM returned an invalid response. Please retry.";
+  }
+
+  return "Could not generate questions right now.";
 }
 
 async function createMainQuestionForUser(userId: string, nodeId: string, body: string) {
@@ -164,32 +184,23 @@ export async function generateMainQuestionsPreviewAction(
     },
   });
 
-  let generatedQuestions: string[];
-  try {
-    generatedQuestions = await generateMainQuestionsForNode({
-      targetLabel: generationContext.targetLabel,
-      nodeLevel: generationContext.targetNode.level,
-      notes: parsed.data.notes?.trim() || undefined,
-      existingQuestions: existingQuestions.map((question) => question.body),
-      desiredCount: GENERATED_MAIN_QUESTION_COUNT,
-    });
-  } catch (error) {
-    if (error instanceof LlmRequestTimeoutError) {
-      return {
-        status: "error",
-        targetLabel: generationContext.targetLabel,
-        generatedQuestions: [],
-        error: "Question generation timed out. Please retry.",
-      };
-    }
+  const generationResult = await generateMainQuestionsForNode({
+    targetLabel: generationContext.targetLabel,
+    nodeLevel: generationContext.targetNode.level,
+    notes: parsed.data.notes?.trim() || undefined,
+    existingQuestions: existingQuestions.map((question) => question.body),
+    desiredCount: GENERATED_MAIN_QUESTION_COUNT,
+  });
 
+  if (!generationResult.ok) {
     return {
       status: "error",
       targetLabel: generationContext.targetLabel,
       generatedQuestions: [],
-      error: "Could not generate questions right now.",
+      error: mapGenerationFailureReasonToError(generationResult.reason),
     };
   }
+  const generatedQuestions = generationResult.value;
 
   if (generatedQuestions.length === 0) {
     return {

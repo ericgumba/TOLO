@@ -18,11 +18,6 @@ enum NodeLevel {
   SUBTOPIC
 }
 
-enum QuestionType {
-  MAIN
-  FOLLOW_UP
-}
-
 enum ReviewStatus {
   NEW
   LEARNING
@@ -46,10 +41,9 @@ model User {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
-  nodes     Node[]
-  questions Question[]
-  attempts  QuestionAttempt[]
-  reviewStates ReviewState[]
+  nodes         Node[]
+  questions     Question[]
+  reviewStates  ReviewState[]
   llmUsageEvents LlmUsageEvent[]
 }
 
@@ -77,42 +71,16 @@ model Question {
   id        String   @id @default(cuid())
   userId    String
   nodeId    String
-  parentQuestionId String?
-  questionType QuestionType @default(MAIN)
   body      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  node           Node      @relation(fields: [nodeId], references: [id], onDelete: Cascade)
-  parentQuestion Question? @relation("QuestionFollowUps", fields: [parentQuestionId], references: [id], onDelete: SetNull)
-  followUps      Question[] @relation("QuestionFollowUps")
-  attempts       QuestionAttempt[]
-  reviewStates   ReviewState[]
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node         Node              @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  reviewStates ReviewState[]
 
   @@index([userId, nodeId])
-  @@index([userId, parentQuestionId])
-  @@index([userId, questionType])
   @@index([nodeId])
-}
-
-model QuestionAttempt {
-  id            String   @id @default(cuid())
-  questionId    String
-  userId        String
-  userAnswer    String
-  llmScore      Int
-  llmFeedback   String
-  llmCorrection String
-  answeredAt    DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([questionId, userId, answeredAt])
-  @@index([userId, answeredAt])
 }
 
 model ReviewState {

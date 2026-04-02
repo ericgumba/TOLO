@@ -1,5 +1,3 @@
-import { QuestionType } from "@prisma/client";
-
 import { prisma } from "@/lib/prisma";
 import {
   computeNextReviewState,
@@ -17,7 +15,7 @@ export type DueReviewQuestion = {
   status: ReviewStatusValue;
 };
 
-async function getSubjectNodeIds(userId: string, subjectId?: string): Promise<string[] | null> {
+async function getScopeNodeIds(userId: string, subjectId?: string): Promise<string[] | null> {
   if (!subjectId) {
     return null;
   }
@@ -57,15 +55,14 @@ async function getSubjectNodeIds(userId: string, subjectId?: string): Promise<st
   return Array.from(collected);
 }
 
-export async function ensureReviewStatesForMainQuestions(userId: string, subjectId?: string): Promise<void> {
-  const subjectNodeIds = await getSubjectNodeIds(userId, subjectId);
+export async function ensureReviewStatesForQuestions(userId: string, subjectId?: string): Promise<void> {
+  const subjectNodeIds = await getScopeNodeIds(userId, subjectId);
   const whereClause = {
     userId,
-    questionType: QuestionType.MAIN,
     ...(subjectNodeIds ? { nodeId: { in: subjectNodeIds } } : {}),
   };
 
-  const [mainQuestions, existingStates] = await Promise.all([
+  const [questions, existingStates] = await Promise.all([
     prisma.question.findMany({
       where: whereClause,
       select: { id: true },
@@ -77,7 +74,7 @@ export async function ensureReviewStatesForMainQuestions(userId: string, subject
   ]);
 
   const existingQuestionIds = new Set(existingStates.map((state) => state.questionId));
-  const toCreate = mainQuestions
+  const toCreate = questions
     .filter((question) => !existingQuestionIds.has(question.id))
     .map((question) => ({
       userId,
@@ -99,15 +96,14 @@ export async function ensureReviewStatesForMainQuestions(userId: string, subject
 }
 
 export async function getDueReviewCount(userId: string, subjectId?: string): Promise<number> {
-  await ensureReviewStatesForMainQuestions(userId, subjectId);
-  const subjectNodeIds = await getSubjectNodeIds(userId, subjectId);
+  await ensureReviewStatesForQuestions(userId, subjectId);
+  const subjectNodeIds = await getScopeNodeIds(userId, subjectId);
 
   return prisma.reviewState.count({
     where: {
       userId,
       nextReviewAt: { lte: new Date() },
       question: {
-        questionType: QuestionType.MAIN,
         ...(subjectNodeIds ? { nodeId: { in: subjectNodeIds } } : {}),
       },
     },
@@ -119,15 +115,14 @@ export async function getDueReviewQuestions(
   limit = 20,
   subjectId?: string,
 ): Promise<DueReviewQuestion[]> {
-  await ensureReviewStatesForMainQuestions(userId, subjectId);
-  const subjectNodeIds = await getSubjectNodeIds(userId, subjectId);
+  await ensureReviewStatesForQuestions(userId, subjectId);
+  const subjectNodeIds = await getScopeNodeIds(userId, subjectId);
 
   const rows = await prisma.reviewState.findMany({
     where: {
       userId,
       nextReviewAt: { lte: new Date() },
       question: {
-        questionType: QuestionType.MAIN,
         ...(subjectNodeIds ? { nodeId: { in: subjectNodeIds } } : {}),
       },
     },
@@ -170,11 +165,10 @@ export async function upsertReviewStateFromAttempt(input: {
     },
     select: {
       id: true,
-      questionType: true,
     },
   });
 
-  if (!question || question.questionType !== QuestionType.MAIN) {
+  if (!question) {
     return;
   }
 

@@ -57,15 +57,17 @@ describe("QuizBody", () => {
     questionId: "c12345678901234567890124",
     questionBody: "Base question",
     from: "/subject/c12345678901234567890125",
-    attempts: [] as Array<{
-      userAnswer: string;
-      llmScore: number;
-      llmFeedback: string;
-      llmCorrection: string;
-      answeredAt: Date;
-    }>,
-    generatedQuestions: [] as string[],
+    mode: undefined as string | undefined,
+    draftAnswer: "",
     activeHints: [] as string[],
+    submission: null,
+    generatedQuestions: [] as string[],
+    formAction: vi.fn(),
+    onDraftAnswerChange: vi.fn(),
+    onReset: vi.fn(),
+    onAddGeneratedQuestion: vi.fn(),
+    onAddAllGeneratedQuestions: vi.fn(),
+    isAddingGeneratedQuestions: false,
   };
 
   it("shows the editable answer form before submission", () => {
@@ -83,18 +85,18 @@ describe("QuizBody", () => {
     expect(suggestionSections).toHaveLength(0);
   });
 
-  it("shows generated MAIN-question suggestions instead of another editable answer form after submission", () => {
+  it("shows generated question suggestions instead of another editable answer form after submission", () => {
     const tree = QuizBody({
       ...baseProps,
-      attempts: [
-        {
-          userAnswer: "Saved answer",
+      submission: {
+        answer: "Saved answer",
+        feedback: {
           llmScore: 90,
           llmFeedback: "Good answer.",
           llmCorrection: "No changes needed.",
-          answeredAt: new Date("2026-03-30T12:00:00.000Z"),
+          answeredAtIso: "2026-04-01T12:00:00.000Z",
         },
-      ],
+      },
       generatedQuestions: ["Generated question one?", "Generated question two?", "Generated question three?"],
     });
 

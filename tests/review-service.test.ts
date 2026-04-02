@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { QuestionType } from "@prisma/client";
 
 const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
@@ -27,7 +26,6 @@ describe("upsertReviewStateFromAttempt", () => {
   it("skips updating the review state when the answer is submitted before the review is due", async () => {
     prismaMock.question.findFirst.mockResolvedValue({
       id: "question-1",
-      questionType: QuestionType.MAIN,
     });
     prismaMock.reviewState.findUnique.mockResolvedValue({
       status: "LEARNING",
@@ -50,7 +48,6 @@ describe("upsertReviewStateFromAttempt", () => {
   it("updates the review state when the answer is submitted after the review is due", async () => {
     prismaMock.question.findFirst.mockResolvedValue({
       id: "question-1",
-      questionType: QuestionType.MAIN,
     });
     prismaMock.reviewState.findUnique.mockResolvedValue({
       status: "LEARNING",

@@ -2,7 +2,7 @@ type Feedback = {
   llmScore: number;
   llmFeedback: string;
   llmCorrection: string;
-  answeredAt?: Date;
+  answeredAtIso?: string;
 };
 
 type FeedbackCardProps = {
@@ -18,8 +18,8 @@ export function FeedbackCard({ feedback }: FeedbackCardProps) {
     <section className="rounded-xl border border-dashed border-slate-300 bg-white p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-slate-700">LLM feedback</p>
-        {feedback.answeredAt ? (
-          <p className="text-xs text-slate-500">Attempt at {feedback.answeredAt.toLocaleString()}</p>
+        {feedback.answeredAtIso ? (
+          <p className="text-xs text-slate-500">Answered at {new Date(feedback.answeredAtIso).toLocaleString()}</p>
         ) : null}
       </div>
 

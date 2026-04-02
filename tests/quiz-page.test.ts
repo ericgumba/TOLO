@@ -5,7 +5,7 @@ const {
   authMock,
   redirectMock,
   prismaMock,
-  quizBodyMock,
+  quizSessionMock,
 } = vi.hoisted(() => ({
   authMock: vi.fn(),
   redirectMock: vi.fn((location: string) => {
@@ -14,21 +14,12 @@ const {
   prismaMock: {
     question: {
       findFirst: vi.fn(),
-      findMany: vi.fn(),
-      deleteMany: vi.fn(),
-    },
-    questionAttempt: {
-      findFirst: vi.fn(),
-      findMany: vi.fn(),
-      deleteMany: vi.fn(),
     },
     reviewState: {
-      findUnique: vi.fn(),
       upsert: vi.fn(),
     },
-    $transaction: vi.fn(),
   },
-  quizBodyMock: vi.fn(() => null),
+  quizSessionMock: vi.fn(() => null),
 }));
 
 vi.mock("@/auth", () => ({
@@ -47,12 +38,8 @@ vi.mock("@/app/components/quiz/quiz-header", () => ({
   QuizHeader: () => null,
 }));
 
-vi.mock("@/app/components/quiz/quiz-body", () => ({
-  QuizBody: quizBodyMock,
-}));
-
-vi.mock("@/app/components/quiz/status-banners", () => ({
-  StatusBanners: () => null,
+vi.mock("@/app/components/quiz/quiz-session", () => ({
+  QuizSession: quizSessionMock,
 }));
 
 import QuizPage from "@/app/quiz/[questionId]/page";
@@ -85,7 +72,7 @@ describe("QuizPage", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-03-30T12:00:00.000Z"));
+    vi.setSystemTime(new Date("2026-04-01T12:00:00.000Z"));
     vi.clearAllMocks();
 
     authMock.mockResolvedValue({
@@ -96,98 +83,77 @@ describe("QuizPage", () => {
     prismaMock.question.findFirst.mockResolvedValue({
       id: questionId,
       body: "Base question",
-      questionType: "MAIN",
       node: {
         id: nodeId,
         title: "Topic",
         level: "TOPIC",
       },
     });
-    prismaMock.questionAttempt.findFirst.mockResolvedValue({
-      answeredAt: new Date("2026-03-30T11:00:00.000Z"),
-    });
-    prismaMock.questionAttempt.findMany.mockResolvedValue([]);
-    prismaMock.question.findMany.mockResolvedValue([]);
-    prismaMock.questionAttempt.deleteMany.mockResolvedValue({ count: 1 });
-    prismaMock.question.deleteMany.mockResolvedValue({ count: 1 });
-    prismaMock.reviewState.findUnique.mockResolvedValue({
-      nextReviewAt: new Date("2026-03-31T12:00:00.000Z"),
-    });
     prismaMock.reviewState.upsert.mockResolvedValue({});
-    prismaMock.$transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[]));
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it("automatically resets quiz progress when the question needs review", async () => {
-    prismaMock.reviewState.findUnique.mockResolvedValue({
-      nextReviewAt: new Date("2026-03-30T11:00:00.000Z"),
-    });
-
-    await QuizPage({
-      params: Promise.resolve({ questionId }),
-      searchParams: Promise.resolve({ from: `/subject/${nodeId}` }),
-    });
-
-    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
-    expect(prismaMock.questionAttempt.deleteMany).toHaveBeenCalledWith({
-      where: {
-        questionId,
-        userId,
-      },
-    });
-    expect(prismaMock.question.deleteMany).toHaveBeenCalledWith({
-      where: {
-        userId,
-        parentQuestionId: questionId,
-        questionType: "FOLLOW_UP",
-      },
-    });
-  });
-
-  it("does not reset quiz progress when the review is not due", async () => {
-    await QuizPage({
-      params: Promise.resolve({ questionId }),
-      searchParams: Promise.resolve({ from: `/subject/${nodeId}` }),
-    });
-
-    expect(prismaMock.$transaction).not.toHaveBeenCalled();
-    expect(prismaMock.questionAttempt.deleteMany).not.toHaveBeenCalled();
-    expect(prismaMock.question.deleteMany).not.toHaveBeenCalled();
-  });
-
-  it("passes generated MAIN-question suggestions to the quiz body from query params", async () => {
-    prismaMock.questionAttempt.findMany.mockResolvedValue([
-      {
-        userAnswer: "Saved answer",
-        llmScore: 85,
-        llmFeedback: "Nice work.",
-        llmCorrection: "Tighten one detail.",
-        answeredAt: new Date("2026-03-30T11:00:00.000Z"),
-      },
-    ]);
-
+  it("renders the quiz session and updates lastQuizAccessedAt", async () => {
     const tree = await QuizPage({
       params: Promise.resolve({ questionId }),
       searchParams: Promise.resolve({
         from: `/subject/${nodeId}`,
-        submitted: "1",
-        generated1: "Generated question one?",
-        generated2: "Generated question two?",
-        generated3: "Generated question three?",
+        mode: "review",
       }),
     });
 
-    const quizBodyElement = collectElements(tree, (value) => isValidElement(value) && value.type === quizBodyMock)[0];
+    const quizSessionElement = collectElements(
+      tree,
+      (value) => isValidElement(value) && value.type === quizSessionMock,
+    )[0];
 
-    expect(isValidElement(quizBodyElement)).toBe(true);
-    expect(quizBodyElement?.props.generatedQuestions).toEqual([
-      "Generated question one?",
-      "Generated question two?",
-      "Generated question three?",
-    ]);
-    expect(prismaMock.question.findMany).not.toHaveBeenCalled();
+    expect(isValidElement(quizSessionElement)).toBe(true);
+    expect(quizSessionElement?.props).toEqual(
+      expect.objectContaining({
+        questionId,
+        nodeId,
+        questionBody: "Base question",
+        from: `/subject/${nodeId}`,
+        mode: "review",
+      }),
+    );
+    expect(prismaMock.reviewState.upsert).toHaveBeenCalledWith({
+      where: {
+        userId_questionId: {
+          userId,
+          questionId,
+        },
+      },
+      create: {
+        userId,
+        questionId,
+        status: "NEW",
+        intervalDays: 1,
+        repetitionCount: 0,
+        nextReviewAt: new Date("2026-04-01T12:00:00.000Z"),
+        lastQuizAccessedAt: new Date("2026-04-01T12:00:00.000Z"),
+      },
+      update: {
+        lastQuizAccessedAt: new Date("2026-04-01T12:00:00.000Z"),
+      },
+    });
+  });
+
+  it("redirects to the dashboard when the question is missing", async () => {
+    prismaMock.question.findFirst.mockResolvedValue(null);
+
+    await expect(
+      QuizPage({
+        params: Promise.resolve({ questionId }),
+        searchParams: Promise.resolve({
+          from: `/subject/${nodeId}`,
+        }),
+      }),
+    ).rejects.toThrow("REDIRECT:/dashboard");
+
+    expect(prismaMock.reviewState.upsert).not.toHaveBeenCalled();
   });
 });

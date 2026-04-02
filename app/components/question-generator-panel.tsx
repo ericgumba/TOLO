@@ -5,7 +5,7 @@ import { useActionState, useMemo, useState } from "react";
 
 import {
   addGeneratedQuestionToNodeAction,
-  generateMainQuestionsPreviewAction,
+  generateQuestionsPreviewAction,
 } from "@/app/actions/questions";
 import { initialGeneratedQuestionPreviewState } from "@/lib/questions/question-generator-preview";
 
@@ -18,7 +18,7 @@ type QuestionGeneratorPanelProps = {
 export function QuestionGeneratorPanel({ nodeId, targetLabel, returnTo }: QuestionGeneratorPanelProps) {
   const router = useRouter();
   const [state, formAction, isPending] = useActionState(
-    generateMainQuestionsPreviewAction,
+    generateQuestionsPreviewAction,
     initialGeneratedQuestionPreviewState,
   );
   const [hiddenQuestionIds, setHiddenQuestionIds] = useState<string[]>([]);
@@ -48,6 +48,11 @@ export function QuestionGeneratorPanel({ nodeId, targetLabel, returnTo }: Questi
       return;
     }
 
+    if (result.status === "duplicate") {
+      setHiddenQuestionIds((current) => [...current, questionId]);
+      return;
+    }
+
     setHiddenQuestionIds((current) => [...current, questionId]);
     router.refresh();
   }
@@ -70,7 +75,7 @@ export function QuestionGeneratorPanel({ nodeId, targetLabel, returnTo }: Questi
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Generate quiz questions for {resolvedTargetLabel}</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Generate five preview-only main questions for the currently selected node.
+            Generate five preview-only questions for the currently selected node.
           </p>
         </div>
 

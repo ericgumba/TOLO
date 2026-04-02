@@ -1,0 +1,42 @@
+export type QuizInteractionErrorCode =
+  | "attempt_save_failed"
+  | "attempt_timeout"
+  | "attempt_missing_api_key"
+  | "attempt_provider_http_error"
+  | "attempt_invalid_response"
+  | "attempt_network_error"
+  | "hint_generation_failed"
+  | "hint_timeout"
+  | "hint_missing_api_key"
+  | "hint_provider_http_error"
+  | "hint_invalid_response"
+  | "hint_network_error"
+  | "hint_limit_reached"
+  | "llm_daily_limit_reached";
+
+export type QuizSubmissionFeedback = {
+  llmScore: number;
+  llmFeedback: string;
+  llmCorrection: string;
+  answeredAtIso: string;
+};
+
+export type QuizInteractionState = {
+  status: "idle" | "submitted" | "error";
+  draftAnswer: string;
+  submittedAnswer: string | null;
+  feedback: QuizSubmissionFeedback | null;
+  activeHints: string[];
+  generatedQuestions: string[];
+  errorCode: QuizInteractionErrorCode | null;
+};
+
+export const initialQuizInteractionState: QuizInteractionState = {
+  status: "idle",
+  draftAnswer: "",
+  submittedAnswer: null,
+  feedback: null,
+  activeHints: [],
+  generatedQuestions: [],
+  errorCode: null,
+};

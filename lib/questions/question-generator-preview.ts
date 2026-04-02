@@ -16,6 +16,9 @@ export type AddGeneratedQuestionResult =
       status: "success";
     }
   | {
+      status: "duplicate";
+    }
+  | {
       status: "error";
       error: string;
     };

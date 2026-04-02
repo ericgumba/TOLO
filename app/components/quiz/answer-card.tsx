@@ -1,16 +1,26 @@
-import { submitQuestionAttemptAction } from "@/app/actions/quiz";
 import { QuizFormButtons } from "@/app/components/quiz/quiz-form-buttons";
 
 type AnswerCardProps = {
   questionId: string;
   from: string;
-  mode?: string;
   answer?: string;
+  draftAnswer?: string;
   editable: boolean;
   hints?: string[];
+  formAction?: (formData: FormData) => void;
+  onDraftAnswerChange?: (nextValue: string) => void;
 };
 
-export function AnswerCard({ questionId, from, mode, answer, editable, hints = [] }: AnswerCardProps) {
+export function AnswerCard({
+  questionId,
+  from,
+  answer,
+  draftAnswer = "",
+  editable,
+  hints = [],
+  formAction,
+  onDraftAnswerChange,
+}: AnswerCardProps) {
   if (!editable) {
     return (
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -22,17 +32,15 @@ export function AnswerCard({ questionId, from, mode, answer, editable, hints = [
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <form action={submitQuestionAttemptAction} className="flex flex-col gap-3">
+      <form action={formAction} className="flex flex-col gap-3">
         <input type="hidden" name="questionId" value={questionId} />
         <input type="hidden" name="from" value={from} />
-        {mode ? <input type="hidden" name="mode" value={mode} /> : null}
-        {hints[0] ? <input type="hidden" name="hint1" value={hints[0]} /> : null}
-        {hints[1] ? <input type="hidden" name="hint2" value={hints[1]} /> : null}
-        {hints[2] ? <input type="hidden" name="hint3" value={hints[2]} /> : null}
         <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Answer</p>
         <textarea
           id="answer"
           name="answer"
+          value={draftAnswer}
+          onChange={(event) => onDraftAnswerChange?.(event.target.value)}
           className="min-h-36 rounded-md border border-zinc-300 px-3 py-2 text-sm"
           placeholder="Write your answer here"
           required

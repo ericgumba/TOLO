@@ -81,8 +81,8 @@ export async function gradeQuestionAttempt(
               "- correction\n" +
               "- generatedQuestions (array of exactly 3 strings)\n\n" +
               "The student's answer does not need to be detailed.\n\n" +
-              "Always generate exactly 3 distinct candidate MAIN questions for the same node/topic.\n" +
-              "These are not follow-up prompts in a chain. They should each stand alone as future quiz questions.\n\n" +
+              "Always generate exactly 3 distinct candidate questions for the same node/topic.\n" +
+              "These should each stand alone as future quiz questions.\n\n" +
               "Question rules:\n" +
               "- Keep each question concise and specific.\n" +
               "- Prefer understanding, explanation, example, application, or comparison questions.\n" +
@@ -98,7 +98,7 @@ export async function gradeQuestionAttempt(
               `Already asked questions:\n${existingQuestionsText}\n\n` +
               `Question: ${question}\n\n` +
               `Student answer: ${answer}\n\n` +
-              "Generate 3 candidate MAIN questions for future study that fit this same topic and do not repeat wording or meaning of existing questions.\n\n" +
+              "Generate 3 candidate future study questions that fit this same topic and do not repeat wording or meaning of existing questions.\n\n" +
               "Return JSON only.",
           },
         ],
@@ -152,10 +152,10 @@ export async function gradeQuestionAttempt(
     return {
       ok: true,
       value: {
-      score: clampScore(parsed.score),
-      feedback: parsed.feedback.trim(),
-      correction: parsed.correction.trim(),
-      generatedQuestions: sanitizeGeneratedQuestionSuggestions(parsed.generatedQuestions, question, existingQuestions),
+        score: clampScore(parsed.score),
+        feedback: parsed.feedback.trim(),
+        correction: parsed.correction.trim(),
+        generatedQuestions: sanitizeGeneratedQuestionSuggestions(parsed.generatedQuestions, question, existingQuestions),
       },
     };
   } catch (error) {

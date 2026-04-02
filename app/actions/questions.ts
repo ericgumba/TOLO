@@ -13,15 +13,16 @@ import {
   questionGenerateSchema,
   questionSettingsSchema,
 } from "@/lib/auth/validation";
-import { generateMainQuestionsForNode } from "@/lib/llm/generate-main-questions";
+import { generateQuestionsForNode } from "@/lib/llm/generate-questions";
 import { type LlmCallFailureReason } from "@/lib/llm/result";
 import { assertCanUseLlm, LlmDailyLimitExceededError, logLlmUsage } from "@/lib/llm/usage-limit";
-import { GENERATED_MAIN_QUESTION_COUNT } from "@/lib/questions/generation";
+import { GENERATED_QUESTION_COUNT } from "@/lib/questions/generation";
 import {
   type AddGeneratedQuestionResult,
   type GeneratedQuestionPreviewState,
 } from "@/lib/questions/question-generator-preview";
 import { prisma } from "@/lib/prisma";
+import { normalizeQuestionText } from "@/lib/quiz/generated-questions";
 import { getNodeGenerationContextForUser } from "@/lib/tree/service";
 
 async function requireAuthUserId(): Promise<string> {
@@ -58,13 +59,12 @@ function mapGenerationFailureReasonToError(reason: LlmCallFailureReason): string
   return "Could not generate questions right now.";
 }
 
-async function createMainQuestionForUser(userId: string, nodeId: string, body: string) {
+async function createQuestionForUser(userId: string, nodeId: string, body: string) {
   await prisma.question.create({
     data: {
       userId,
       nodeId,
       body,
-      questionType: "MAIN",
       reviewStates: {
         create: {
           userId,
@@ -105,7 +105,7 @@ export async function createQuestionAction(formData: FormData) {
     redirect("/dashboard?error=Node%20not%20found");
   }
 
-  await createMainQuestionForUser(userId, parsed.data.nodeId, parsed.data.body);
+  await createQuestionForUser(userId, parsed.data.nodeId, parsed.data.body);
 
   revalidatePath("/dashboard");
   if (parsed.data.returnTo) {
@@ -116,7 +116,7 @@ export async function createQuestionAction(formData: FormData) {
   redirect("/dashboard");
 }
 
-export async function generateMainQuestionsPreviewAction(
+export async function generateQuestionsPreviewAction(
   _previousState: GeneratedQuestionPreviewState,
   formData: FormData,
 ): Promise<GeneratedQuestionPreviewState> {
@@ -171,7 +171,6 @@ export async function generateMainQuestionsPreviewAction(
   const existingQuestions = await prisma.question.findMany({
     where: {
       userId,
-      questionType: "MAIN",
       nodeId: {
         in: generationContext.scopeNodeIds,
       },
@@ -184,12 +183,12 @@ export async function generateMainQuestionsPreviewAction(
     },
   });
 
-  const generationResult = await generateMainQuestionsForNode({
+  const generationResult = await generateQuestionsForNode({
     targetLabel: generationContext.targetLabel,
     nodeLevel: generationContext.targetNode.level,
     notes: parsed.data.notes?.trim() || undefined,
     existingQuestions: existingQuestions.map((question) => question.body),
-    desiredCount: GENERATED_MAIN_QUESTION_COUNT,
+    desiredCount: GENERATED_QUESTION_COUNT,
   });
 
   if (!generationResult.ok) {
@@ -230,7 +229,7 @@ export async function generateMainQuestionsPreviewAction(
       body,
     })),
     message:
-      generatedQuestions.length < GENERATED_MAIN_QUESTION_COUNT
+      generatedQuestions.length < GENERATED_QUESTION_COUNT
         ? `Generated ${generatedQuestions.length} unique questions after filtering duplicates.`
         : undefined,
   };
@@ -270,8 +269,32 @@ export async function addGeneratedQuestionToNodeAction(input: {
     };
   }
 
+  const normalizedCandidate = normalizeQuestionText(parsed.data.body);
+  const existingQuestions = await prisma.question.findMany({
+    where: {
+      userId,
+      nodeId: parsed.data.nodeId,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+    select: {
+      body: true,
+    },
+  });
+
+  const hasDuplicate = existingQuestions.some(
+    (question) => normalizeQuestionText(question.body) === normalizedCandidate,
+  );
+
+  if (hasDuplicate) {
+    return {
+      status: "duplicate",
+    };
+  }
+
   try {
-    await createMainQuestionForUser(userId, parsed.data.nodeId, parsed.data.body);
+    await createQuestionForUser(userId, parsed.data.nodeId, parsed.data.body);
   } catch {
     return {
       status: "error",
@@ -307,7 +330,6 @@ export async function resetQuestionReviewStateAction(formData: FormData) {
     },
     select: {
       id: true,
-      questionType: true,
     },
   });
 
@@ -315,32 +337,30 @@ export async function resetQuestionReviewStateAction(formData: FormData) {
     redirect(returnTo);
   }
 
-  if (question.questionType === "MAIN") {
-    await prisma.reviewState.upsert({
-      where: {
-        userId_questionId: {
-          userId,
-          questionId: question.id,
-        },
-      },
-      create: {
+  await prisma.reviewState.upsert({
+    where: {
+      userId_questionId: {
         userId,
         questionId: question.id,
-        status: "NEW",
-        intervalDays: 1,
-        repetitionCount: 0,
-        lastReviewedAt: null,
-        nextReviewAt: new Date(),
       },
-      update: {
-        status: "NEW",
-        intervalDays: 1,
-        repetitionCount: 0,
-        lastReviewedAt: null,
-        nextReviewAt: new Date(),
-      },
-    });
-  }
+    },
+    create: {
+      userId,
+      questionId: question.id,
+      status: "NEW",
+      intervalDays: 1,
+      repetitionCount: 0,
+      lastReviewedAt: null,
+      nextReviewAt: new Date(),
+    },
+    update: {
+      status: "NEW",
+      intervalDays: 1,
+      repetitionCount: 0,
+      lastReviewedAt: null,
+      nextReviewAt: new Date(),
+    },
+  });
 
   revalidatePath("/dashboard");
   revalidatePath(returnTo);
@@ -376,20 +396,11 @@ export async function deleteQuestionAction(formData: FormData) {
     redirect(returnTo);
   }
 
-  await prisma.$transaction([
-    prisma.question.deleteMany({
-      where: {
-        userId,
-        parentQuestionId: question.id,
-        questionType: "FOLLOW_UP",
-      },
-    }),
-    prisma.question.delete({
-      where: {
-        id: question.id,
-      },
-    }),
-  ]);
+  await prisma.question.delete({
+    where: {
+      id: question.id,
+    },
+  });
 
   revalidatePath("/dashboard");
   revalidatePath(returnTo);

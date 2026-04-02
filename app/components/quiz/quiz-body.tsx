@@ -1,77 +1,81 @@
 import Link from "next/link";
+
 import { AnswerCard } from "@/app/components/quiz/answer-card";
 import { FeedbackCard } from "@/app/components/quiz/feedback-card";
 import { GeneratedQuestionSuggestions } from "@/app/components/quiz/generated-question-suggestions";
 import { QuestionCard } from "@/app/components/quiz/question-card";
+import { type QuizSubmissionFeedback } from "@/lib/quiz/session-state";
 
 type QuizBodyProps = {
   questionId: string;
   questionBody: string;
   from: string;
   mode?: string;
-  attempts: Array<{
-    userAnswer: string;
-    llmScore: number;
-    llmFeedback: string;
-    llmCorrection: string;
-    answeredAt: Date;
-  }>;
-  generatedQuestions: string[];
+  draftAnswer: string;
   activeHints: string[];
+  submission: {
+    answer: string;
+    feedback: QuizSubmissionFeedback;
+  } | null;
+  generatedQuestions: string[];
+  formAction: (formData: FormData) => void;
+  onDraftAnswerChange: (nextValue: string) => void;
+  onReset: () => void;
+  onAddGeneratedQuestion: (question: string) => void | Promise<void>;
+  onAddAllGeneratedQuestions: () => void | Promise<void>;
+  pendingGeneratedQuestion: string | null;
+  addAllPending: boolean;
 };
 
-export function QuizBody({ questionId, questionBody, from, mode, attempts, generatedQuestions, activeHints }: QuizBodyProps) {
-  const hasSavedAttempt = attempts.length > 0;
+export function QuizBody({
+  questionId,
+  questionBody,
+  from,
+  draftAnswer,
+  activeHints,
+  submission,
+  generatedQuestions,
+  formAction,
+  onDraftAnswerChange,
+  onReset,
+  onAddGeneratedQuestion,
+  onAddAllGeneratedQuestions,
+  pendingGeneratedQuestion,
+  addAllPending,
+}: QuizBodyProps) {
+  const hasSubmission = submission !== null;
 
   return (
     <div className="flex flex-col gap-6">
-      {attempts.map((attempt, index) => (
-        <div key={`${attempt.answeredAt.toISOString()}-${index}`} className="flex flex-col gap-4">
-          <QuestionCard
-            questionId={questionId}
-            questionBody={questionBody}
-            from={from}
-            mode={mode}
-            canReset={index === 0}
-          />
-          <AnswerCard questionId={questionId} from={from} mode={mode} answer={attempt.userAnswer} editable={false} />
-          <FeedbackCard
-            feedback={{
-              llmScore: attempt.llmScore,
-              llmFeedback: attempt.llmFeedback,
-              llmCorrection: attempt.llmCorrection,
-              answeredAt: attempt.answeredAt,
-            }}
-          />
-        </div>
-      ))}
-
-      {hasSavedAttempt ? null : (
+      {hasSubmission ? (
         <div className="flex flex-col gap-4">
-          <QuestionCard
-            questionId={questionId}
-            questionBody={questionBody}
-            from={from}
-            mode={mode}
-            canReset={false}
-          />
+          <QuestionCard questionBody={questionBody} canReset onReset={onReset} />
+          <AnswerCard questionId={questionId} from={from} answer={submission.answer} editable={false} />
+          <FeedbackCard feedback={submission.feedback} />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <QuestionCard questionBody={questionBody} canReset={false} />
           <AnswerCard
             questionId={questionId}
             from={from}
-            mode={mode}
+            draftAnswer={draftAnswer}
             editable
             hints={activeHints}
+            formAction={formAction}
+            onDraftAnswerChange={onDraftAnswerChange}
           />
           <FeedbackCard feedback={null} />
         </div>
       )}
 
-      {hasSavedAttempt && generatedQuestions.length > 0 ? (
+      {hasSubmission && generatedQuestions.length > 0 ? (
         <GeneratedQuestionSuggestions
-          questionId={questionId}
-          from={from}
-          mode={mode}
           questions={generatedQuestions}
+          onAdd={onAddGeneratedQuestion}
+          onAddAll={onAddAllGeneratedQuestions}
+          pendingQuestion={pendingGeneratedQuestion}
+          addAllPending={addAllPending}
         />
       ) : null}
 

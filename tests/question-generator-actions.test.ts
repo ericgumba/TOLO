@@ -6,7 +6,7 @@ const {
   prismaMock,
   assertCanUseLlmMock,
   logLlmUsageMock,
-  generateMainQuestionsForNodeMock,
+  generateQuestionsForNodeMock,
   getNodeGenerationContextForUserMock,
 } = vi.hoisted(() => ({
   authMock: vi.fn(),
@@ -22,7 +22,7 @@ const {
   },
   assertCanUseLlmMock: vi.fn(),
   logLlmUsageMock: vi.fn(),
-  generateMainQuestionsForNodeMock: vi.fn(),
+  generateQuestionsForNodeMock: vi.fn(),
   getNodeGenerationContextForUserMock: vi.fn(),
 }));
 
@@ -44,8 +44,8 @@ vi.mock("@/lib/llm/usage-limit", () => ({
   LlmDailyLimitExceededError: class LlmDailyLimitExceededError extends Error {},
 }));
 
-vi.mock("@/lib/llm/generate-main-questions", () => ({
-  generateMainQuestionsForNode: generateMainQuestionsForNodeMock,
+vi.mock("@/lib/llm/generate-questions", () => ({
+  generateQuestionsForNode: generateQuestionsForNodeMock,
 }));
 
 vi.mock("@/lib/tree/service", () => ({
@@ -54,7 +54,7 @@ vi.mock("@/lib/tree/service", () => ({
 
 import {
   addGeneratedQuestionToNodeAction,
-  generateMainQuestionsPreviewAction,
+  generateQuestionsPreviewAction,
 } from "@/app/actions/questions";
 import { initialGeneratedQuestionPreviewState } from "@/lib/questions/question-generator-preview";
 import { LlmDailyLimitExceededError } from "@/lib/llm/usage-limit";
@@ -91,7 +91,7 @@ describe("node question generator actions", () => {
     prismaMock.question.create.mockResolvedValue({ id: "created-question-id" });
     assertCanUseLlmMock.mockResolvedValue(undefined);
     logLlmUsageMock.mockResolvedValue(undefined);
-    generateMainQuestionsForNodeMock.mockResolvedValue({
+    generateQuestionsForNodeMock.mockResolvedValue({
       ok: true,
       value: [
         "How does a process differ from a thread?",
@@ -109,10 +109,10 @@ describe("node question generator actions", () => {
     formData.set("returnTo", returnTo);
     formData.set("notes", "From chapter 3 of the OS book.");
 
-    const state = await generateMainQuestionsPreviewAction(initialGeneratedQuestionPreviewState, formData);
+    const state = await generateQuestionsPreviewAction(initialGeneratedQuestionPreviewState, formData);
 
     expect(assertCanUseLlmMock).toHaveBeenCalledWith(userId);
-    expect(generateMainQuestionsForNodeMock).toHaveBeenCalledWith({
+    expect(generateQuestionsForNodeMock).toHaveBeenCalledWith({
       targetLabel: "Operating Systems",
       nodeLevel: "SUBJECT",
       notes: "From chapter 3 of the OS book.",
@@ -138,9 +138,9 @@ describe("node question generator actions", () => {
     formData.set("nodeId", nodeId);
     formData.set("returnTo", returnTo);
 
-    const state = await generateMainQuestionsPreviewAction(initialGeneratedQuestionPreviewState, formData);
+    const state = await generateQuestionsPreviewAction(initialGeneratedQuestionPreviewState, formData);
 
-    expect(generateMainQuestionsForNodeMock).not.toHaveBeenCalled();
+    expect(generateQuestionsForNodeMock).not.toHaveBeenCalled();
     expect(state.status).toBe("error");
     expect(state.error).toContain("node");
   });
@@ -152,16 +152,16 @@ describe("node question generator actions", () => {
     formData.set("nodeId", nodeId);
     formData.set("returnTo", returnTo);
 
-    const state = await generateMainQuestionsPreviewAction(initialGeneratedQuestionPreviewState, formData);
+    const state = await generateQuestionsPreviewAction(initialGeneratedQuestionPreviewState, formData);
 
-    expect(generateMainQuestionsForNodeMock).not.toHaveBeenCalled();
+    expect(generateQuestionsForNodeMock).not.toHaveBeenCalled();
     expect(logLlmUsageMock).not.toHaveBeenCalled();
     expect(state.status).toBe("error");
     expect(state.error).toContain("Daily LLM limit");
   });
 
   it("does not log usage when LLM generation fails", async () => {
-    generateMainQuestionsForNodeMock.mockResolvedValue({
+    generateQuestionsForNodeMock.mockResolvedValue({
       ok: false,
       reason: "http_error",
     });
@@ -170,13 +170,13 @@ describe("node question generator actions", () => {
     formData.set("nodeId", nodeId);
     formData.set("returnTo", returnTo);
 
-    const state = await generateMainQuestionsPreviewAction(initialGeneratedQuestionPreviewState, formData);
+    const state = await generateQuestionsPreviewAction(initialGeneratedQuestionPreviewState, formData);
 
     expect(state.status).toBe("error");
     expect(logLlmUsageMock).not.toHaveBeenCalled();
   });
 
-  it("creates a MAIN question with initial review state when adding a generated preview question", async () => {
+  it("creates a question with initial review state when adding a generated preview question", async () => {
     const result = await addGeneratedQuestionToNodeAction({
       nodeId,
       body: "How does a process differ from a thread?",
@@ -197,7 +197,6 @@ describe("node question generator actions", () => {
         userId,
         nodeId,
         body: "How does a process differ from a thread?",
-        questionType: "MAIN",
         reviewStates: {
           create: expect.objectContaining({
             userId,
@@ -226,5 +225,21 @@ describe("node question generator actions", () => {
     expect(prismaMock.question.create).not.toHaveBeenCalled();
     expect(result.status).toBe("error");
     expect(result.error).toContain("node");
+  });
+
+  it("skips adding a duplicate generated question on the same node", async () => {
+    prismaMock.question.findMany.mockResolvedValue([
+      { body: "What is a process?" },
+      { body: "How does a process differ from a thread?" },
+    ]);
+
+    const result = await addGeneratedQuestionToNodeAction({
+      nodeId,
+      body: "  how does a process differ from a thread?  ",
+      returnTo,
+    });
+
+    expect(prismaMock.question.create).not.toHaveBeenCalled();
+    expect(result).toEqual({ status: "duplicate" });
   });
 });

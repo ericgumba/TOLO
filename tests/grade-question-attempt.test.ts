@@ -31,7 +31,7 @@ describe("gradeQuestionAttempt", () => {
     });
   });
 
-  it("normalizes, deduplicates, and backfills generated MAIN-question suggestions", async () => {
+  it("normalizes, deduplicates, and backfills generated question suggestions", async () => {
     process.env.OPENAI_API_KEY = "test-key";
 
     vi.stubGlobal(

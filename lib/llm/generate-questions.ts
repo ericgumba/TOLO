@@ -1,13 +1,13 @@
 import { getOpenAiModel } from "@/lib/llm/model";
 import { fetchWithLlmTimeout, LlmRequestTimeoutError } from "@/lib/llm/request";
 import { type LlmCallResult } from "@/lib/llm/result";
-import {
-  GENERATED_MAIN_QUESTION_COUNT,
-  RAW_GENERATED_MAIN_QUESTION_COUNT,
-} from "@/lib/quiz/constants";
 import { postProcessGeneratedQuestions } from "@/lib/questions/generation";
+import {
+  GENERATED_QUESTION_COUNT,
+  RAW_GENERATED_QUESTION_COUNT,
+} from "@/lib/quiz/constants";
 
-type GenerateMainQuestionsInput = {
+type GenerateQuestionsInput = {
   targetLabel: string;
   nodeLevel: "SUBJECT" | "TOPIC" | "SUBTOPIC";
   notes?: string;
@@ -15,12 +15,12 @@ type GenerateMainQuestionsInput = {
   desiredCount?: number;
 };
 
-export async function generateMainQuestionsForNode(
-  input: GenerateMainQuestionsInput,
+export async function generateQuestionsForNode(
+  input: GenerateQuestionsInput,
 ): Promise<LlmCallResult<string[]>> {
   const apiKey = process.env.OPENAI_API_KEY;
   const model = getOpenAiModel();
-  const desiredCount = input.desiredCount ?? GENERATED_MAIN_QUESTION_COUNT;
+  const desiredCount = input.desiredCount ?? GENERATED_QUESTION_COUNT;
 
   if (!apiKey) {
     return {
@@ -50,11 +50,11 @@ export async function generateMainQuestionsForNode(
           {
             role: "system",
             content:
-              "You generate concise MAIN quiz questions for a learning app.\n\n" +
+              "You generate concise quiz questions for a learning app.\n\n" +
               "Return strict JSON with key:\n" +
               "- questions (array of strings)\n\n" +
               "Rules:\n" +
-              `- Generate ${RAW_GENERATED_MAIN_QUESTION_COUNT} distinct candidates.\n` +
+              `- Generate ${RAW_GENERATED_QUESTION_COUNT} distinct candidates.\n` +
               "- Each question must stand alone as a future quiz question.\n" +
               "- Prefer explanation, application, comparison, mechanism, or tradeoff questions.\n" +
               "- Avoid generic wording, trivia, or source-attribution prompts.\n" +
@@ -68,8 +68,8 @@ export async function generateMainQuestionsForNode(
               `Target path: ${input.targetLabel}\n` +
               `Target node level: ${input.nodeLevel}\n` +
               `Optional notes: ${notesText}\n\n` +
-              `Existing MAIN questions in scope:\n${existingQuestionsText}\n\n` +
-              `Generate ${RAW_GENERATED_MAIN_QUESTION_COUNT} candidate MAIN questions.`,
+              `Existing questions in scope:\n${existingQuestionsText}\n\n` +
+              `Generate ${RAW_GENERATED_QUESTION_COUNT} candidate quiz questions.`,
           },
         ],
       }),

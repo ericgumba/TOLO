@@ -6,6 +6,7 @@ const {
   revalidatePathMock,
   prismaMock,
   gradeQuestionAttemptMock,
+  generateQuestionHintMock,
   assertCanUseLlmMock,
   logLlmUsageMock,
   upsertReviewStateFromAttemptMock,
@@ -19,17 +20,13 @@ const {
     question: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
-      create: vi.fn(),
     },
     node: {
       findFirst: vi.fn(),
     },
-    questionAttempt: {
-      findMany: vi.fn(),
-      create: vi.fn(),
-    },
   },
   gradeQuestionAttemptMock: vi.fn(),
+  generateQuestionHintMock: vi.fn(),
   assertCanUseLlmMock: vi.fn(),
   logLlmUsageMock: vi.fn(),
   upsertReviewStateFromAttemptMock: vi.fn(),
@@ -55,6 +52,10 @@ vi.mock("@/lib/llm/grade-question-attempt", () => ({
   gradeQuestionAttempt: gradeQuestionAttemptMock,
 }));
 
+vi.mock("@/lib/llm/generate-question-hint", () => ({
+  generateQuestionHint: generateQuestionHintMock,
+}));
+
 vi.mock("@/lib/llm/request", () => ({
   LlmRequestTimeoutError: class LlmRequestTimeoutError extends Error {},
 }));
@@ -69,11 +70,8 @@ vi.mock("@/lib/review/service", () => ({
   upsertReviewStateFromAttempt: upsertReviewStateFromAttemptMock,
 }));
 
-import {
-  addAllGeneratedQuestionsAction,
-  addGeneratedQuestionAction,
-  submitQuestionAttemptAction,
-} from "@/app/actions/quiz";
+import { runQuizInteractionAction } from "@/app/actions/quiz";
+import { initialQuizInteractionState } from "@/lib/quiz/session-state";
 
 function buildFormData(entries: Record<string, string>): FormData {
   const formData = new FormData();
@@ -83,7 +81,7 @@ function buildFormData(entries: Record<string, string>): FormData {
   return formData;
 }
 
-describe("submitQuestionAttemptAction", () => {
+describe("runQuizInteractionAction", () => {
   const userId = "c12345678901234567890123";
   const questionId = "c12345678901234567890124";
   const nodeId = "c12345678901234567890125";
@@ -100,7 +98,6 @@ describe("submitQuestionAttemptAction", () => {
       id: questionId,
       body: "Base question",
       nodeId,
-      questionType: "MAIN",
       node: {
         parentId: null,
         id: nodeId,
@@ -109,10 +106,7 @@ describe("submitQuestionAttemptAction", () => {
       },
     });
     prismaMock.node.findFirst.mockResolvedValue(null);
-    prismaMock.questionAttempt.findMany.mockResolvedValue([]);
     prismaMock.question.findMany.mockResolvedValue([{ body: "Base question" }]);
-    prismaMock.questionAttempt.create.mockResolvedValue({ id: "attempt-1" });
-    prismaMock.question.create.mockResolvedValue({ id: "question-created-1" });
     gradeQuestionAttemptMock.mockResolvedValue({
       ok: true,
       value: {
@@ -122,143 +116,126 @@ describe("submitQuestionAttemptAction", () => {
         generatedQuestions: ["Generated question one?", "Generated question two?", "Generated question three?"],
       },
     });
+    generateQuestionHintMock.mockResolvedValue({
+      ok: true,
+      value: "Think about the resources and execution context involved.",
+    });
     assertCanUseLlmMock.mockResolvedValue(undefined);
     logLlmUsageMock.mockResolvedValue(undefined);
     upsertReviewStateFromAttemptMock.mockResolvedValue(undefined);
   });
 
-  it("saves the attempt, updates review state, and redirects with generated MAIN-question suggestions", async () => {
-    await expect(
-      submitQuestionAttemptAction(
-        buildFormData({
-          questionId,
-          answer: "First answer",
-          from: `/subject/${nodeId}`,
-        }),
-      ),
-    ).rejects.toThrow(
-      `REDIRECT:/quiz/${questionId}?from=%2Fsubject%2F${nodeId}&submitted=1&generated1=Generated+question+one%3F&generated2=Generated+question+two%3F&generated3=Generated+question+three%3F`,
+  it("returns ephemeral feedback and suggestions after a successful submit", async () => {
+    const state = await runQuizInteractionAction(
+      initialQuizInteractionState,
+      buildFormData({
+        questionId,
+        answer: "First answer",
+        from: `/subject/${nodeId}`,
+        intent: "submit",
+      }),
     );
 
+    expect(state.status).toBe("submitted");
+    expect(state.submittedAnswer).toBe("First answer");
+    expect(state.feedback).toEqual(
+      expect.objectContaining({
+        llmScore: 82,
+        llmFeedback: "Good answer.",
+        llmCorrection: "No correction needed.",
+        answeredAtIso: expect.any(String),
+      }),
+    );
+    expect(state.generatedQuestions).toEqual([
+      "Generated question one?",
+      "Generated question two?",
+      "Generated question three?",
+    ]);
     expect(upsertReviewStateFromAttemptMock).toHaveBeenCalledTimes(1);
-    expect(prismaMock.questionAttempt.create).toHaveBeenCalledTimes(1);
-    expect(prismaMock.question.create).not.toHaveBeenCalled();
+    expect(logLlmUsageMock).toHaveBeenCalledWith(userId, "GRADE");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard");
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/subject/${nodeId}`);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/quiz/${questionId}`);
   });
 
-  it("does not update the review state for follow-up answers", async () => {
-    prismaMock.questionAttempt.findMany.mockResolvedValue([{ userAnswer: "First answer" }]);
-    prismaMock.question.findMany.mockResolvedValue([{ body: "Base question" }]);
-
-    await expect(
-      submitQuestionAttemptAction(
-        buildFormData({
-          questionId,
-          answer: "Follow-up answer",
-          from: `/subject/${nodeId}`,
-        }),
-      ),
-    ).rejects.toThrow(
-      `REDIRECT:/quiz/${questionId}?from=%2Fsubject%2F${nodeId}&submitted=1&generated1=Generated+question+one%3F&generated2=Generated+question+two%3F&generated3=Generated+question+three%3F`,
+  it("returns updated hints without persisting an attempt", async () => {
+    const state = await runQuizInteractionAction(
+      {
+        ...initialQuizInteractionState,
+        draftAnswer: "Draft answer",
+        activeHints: ["Start by defining the core unit."],
+      },
+      buildFormData({
+        questionId,
+        answer: "Draft answer",
+        from: `/subject/${nodeId}`,
+        intent: "hint",
+      }),
     );
 
+    expect(state.status).toBe("idle");
+    expect(state.feedback).toBeNull();
+    expect(state.generatedQuestions).toEqual([]);
+    expect(state.activeHints).toEqual([
+      "Start by defining the core unit.",
+      "Think about the resources and execution context involved.",
+    ]);
+    expect(generateQuestionHintMock).toHaveBeenCalledWith({
+      question: "Base question",
+      context: [
+        {
+          id: nodeId,
+          title: "Topic",
+          level: "TOPIC",
+        },
+      ],
+      quizHistory: [],
+      hintLevel: 2,
+      existingHints: ["Start by defining the core unit."],
+    });
+    expect(logLlmUsageMock).toHaveBeenCalledWith(userId, "HINT");
     expect(upsertReviewStateFromAttemptMock).not.toHaveBeenCalled();
-    expect(prismaMock.question.create).not.toHaveBeenCalled();
   });
 
-  it("does not log usage when grading fails", async () => {
+  it("returns an error state when grading fails", async () => {
     gradeQuestionAttemptMock.mockResolvedValue({
       ok: false,
       reason: "http_error",
     });
 
-    await expect(
-      submitQuestionAttemptAction(
-        buildFormData({
-          questionId,
-          answer: "First answer",
-          from: `/subject/${nodeId}`,
-        }),
-      ),
-    ).rejects.toThrow(`REDIRECT:/quiz/${questionId}?from=%2Fsubject%2F${nodeId}&error=attempt_provider_http_error`);
+    const state = await runQuizInteractionAction(
+      initialQuizInteractionState,
+      buildFormData({
+        questionId,
+        answer: "First answer",
+        from: `/subject/${nodeId}`,
+        intent: "submit",
+      }),
+    );
 
+    expect(state.status).toBe("error");
+    expect(state.errorCode).toBe("attempt_provider_http_error");
     expect(logLlmUsageMock).not.toHaveBeenCalled();
-    expect(prismaMock.questionAttempt.create).not.toHaveBeenCalled();
+    expect(upsertReviewStateFromAttemptMock).not.toHaveBeenCalled();
   });
 
-  it("adds one generated MAIN question and keeps the remaining suggestions in the redirect", async () => {
-    prismaMock.question.findMany.mockResolvedValue([{ body: "Base question" }]);
-
-    await expect(
-      addGeneratedQuestionAction(
-        buildFormData({
-          questionId,
-          from: `/subject/${nodeId}`,
-          candidateIndex: "1",
-          generated1: "Generated question one?",
-          generated2: "Generated question two?",
-          generated3: "Generated question three?",
-        }),
-      ),
-    ).rejects.toThrow(
-      `REDIRECT:/quiz/${questionId}?from=%2Fsubject%2F${nodeId}&generated1=Generated+question+one%3F&generated2=Generated+question+three%3F&added=1&skipped=0`,
-    );
-
-    expect(prismaMock.question.create).toHaveBeenCalledTimes(1);
-    expect(prismaMock.question.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        userId,
-        nodeId,
-        body: "Generated question two?",
-        questionType: "MAIN",
-        reviewStates: {
-          create: expect.objectContaining({
-            userId,
-            status: "NEW",
-            intervalDays: 1,
-            repetitionCount: 0,
-            nextReviewAt: expect.any(Date),
-          }),
-        },
-      }),
-    });
-  });
-
-  it("adds all generated MAIN questions and skips duplicates", async () => {
-    prismaMock.question.findMany.mockResolvedValue([
-      { body: "Base question" },
-      { body: "Generated question two?" },
-    ]);
-
-    await expect(
-      addAllGeneratedQuestionsAction(
-        buildFormData({
-          questionId,
-          from: `/subject/${nodeId}`,
-          generated1: "Generated question one?",
-          generated2: "Generated question two?",
-          generated3: "Generated question three?",
-        }),
-      ),
-    ).rejects.toThrow(`REDIRECT:/quiz/${questionId}?from=%2Fsubject%2F${nodeId}&added=2&skipped=1`);
-
-    expect(prismaMock.question.create).toHaveBeenCalledTimes(2);
-    expect(prismaMock.question.create).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        data: expect.objectContaining({
-          body: "Generated question one?",
-          questionType: "MAIN",
-        }),
+  it("returns an error state when the user asks for too many hints", async () => {
+    const state = await runQuizInteractionAction(
+      {
+        ...initialQuizInteractionState,
+        activeHints: ["Hint 1", "Hint 2", "Hint 3"],
+      },
+      buildFormData({
+        questionId,
+        answer: "",
+        from: `/subject/${nodeId}`,
+        intent: "hint",
       }),
     );
-    expect(prismaMock.question.create).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        data: expect.objectContaining({
-          body: "Generated question three?",
-          questionType: "MAIN",
-        }),
-      }),
-    );
+
+    expect(state.status).toBe("error");
+    expect(state.errorCode).toBe("hint_limit_reached");
+    expect(generateQuestionHintMock).not.toHaveBeenCalled();
+    expect(logLlmUsageMock).not.toHaveBeenCalled();
   });
 });

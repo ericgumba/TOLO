@@ -69,10 +69,9 @@ describe("question settings actions", () => {
     prismaMock.$transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[]));
   });
 
-  it("resets review state for main questions", async () => {
+  it("resets review state for a question", async () => {
     prismaMock.question.findFirst.mockResolvedValue({
       id: questionId,
-      questionType: "MAIN",
     });
 
     await expect(
@@ -107,25 +106,7 @@ describe("question settings actions", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith(`/quiz/${questionId}`);
   });
 
-  it("does not reset review state for follow-up questions", async () => {
-    prismaMock.question.findFirst.mockResolvedValue({
-      id: questionId,
-      questionType: "FOLLOW_UP",
-    });
-
-    await expect(
-      resetQuestionReviewStateAction(
-        buildFormData({
-          questionId,
-          returnTo: "/dashboard",
-        }),
-      ),
-    ).rejects.toThrow("REDIRECT:/dashboard");
-
-    expect(prismaMock.reviewState.upsert).not.toHaveBeenCalled();
-  });
-
-  it("deletes main question and its follow-ups when confirmed", async () => {
+  it("deletes a question when confirmed", async () => {
     prismaMock.question.findFirst.mockResolvedValue({
       id: questionId,
     });
@@ -140,19 +121,13 @@ describe("question settings actions", () => {
       ),
     ).rejects.toThrow("REDIRECT:/subject/c12345678901234567890125");
 
-    expect(prismaMock.question.deleteMany).toHaveBeenCalledWith({
-      where: {
-        userId,
-        parentQuestionId: questionId,
-        questionType: "FOLLOW_UP",
-      },
-    });
     expect(prismaMock.question.delete).toHaveBeenCalledWith({
       where: {
         id: questionId,
       },
     });
-    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(prismaMock.question.deleteMany).not.toHaveBeenCalled();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
   it("rejects delete action when confirmation token is missing", async () => {

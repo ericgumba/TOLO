@@ -60,7 +60,7 @@ export function StatusBanners({
     <>
       {submitted ? (
         <section className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-          Attempt saved. Review suggestions are ready below.
+          Feedback is ready below. This result clears when you refresh or leave the page.
         </section>
       ) : null}
 
@@ -72,13 +72,13 @@ export function StatusBanners({
 
       {saveError ? (
         <section className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          Could not save/reset attempt. Run latest Prisma migration and retry.
+          Could not complete this quiz action. Please retry.
         </section>
       ) : null}
 
       {attemptTimedOut ? (
         <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Grading took too long, so this answer was not saved. Please retry.
+          Grading took too long, so feedback could not be generated. Please retry.
         </section>
       ) : null}
 

@@ -51,8 +51,7 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
     id: string;
     nodeId: string;
     body: string;
-    attempts: Array<{ answeredAt: Date }>;
-    reviewStates: Array<{ nextReviewAt: Date }>;
+    reviewStates: Array<{ lastReviewedAt: Date | null; nextReviewAt: Date }>;
   }> = [];
   const now = new Date();
   const questionDelegate = (
@@ -64,8 +63,7 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
             id: string;
             nodeId: string;
             body: string;
-            attempts: Array<{ answeredAt: Date }>;
-            reviewStates: Array<{ nextReviewAt: Date }>;
+            reviewStates: Array<{ lastReviewedAt: Date | null; nextReviewAt: Date }>;
           }>
         >;
       };
@@ -77,7 +75,6 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
         questionDelegate.count({
           where: {
             userId: session.user.id,
-            questionType: "MAIN",
             nodeId: {
               in: nodeIds,
             },
@@ -86,7 +83,6 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
         questionDelegate.findMany({
           where: {
             userId: session.user.id,
-            questionType: "MAIN",
             nodeId: {
               in: nodeIds,
             },
@@ -98,24 +94,13 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
             id: true,
             nodeId: true,
             body: true,
-            attempts: {
-              where: {
-                userId: session.user.id,
-              },
-              orderBy: {
-                answeredAt: "desc",
-              },
-              take: 1,
-              select: {
-                answeredAt: true,
-              },
-            },
             reviewStates: {
               where: {
                 userId: session.user.id,
               },
               take: 1,
               select: {
+                lastReviewedAt: true,
                 nextReviewAt: true,
               },
             },

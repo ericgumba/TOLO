@@ -1,5 +1,5 @@
 import {
-  GENERATED_MAIN_QUESTION_COUNT,
+  GENERATED_QUESTION_COUNT,
   MAX_GENERATED_QUESTION_LENGTH,
 } from "@/lib/quiz/constants";
 import { normalizeQuestionText } from "@/lib/quiz/generated-questions";
@@ -53,7 +53,7 @@ export function postProcessGeneratedQuestions(
     seen.add(normalized);
     questions.push(finalized);
 
-    if (questions.length >= GENERATED_MAIN_QUESTION_COUNT) {
+    if (questions.length >= GENERATED_QUESTION_COUNT) {
       break;
     }
   }
@@ -61,4 +61,4 @@ export function postProcessGeneratedQuestions(
   return questions;
 }
 
-export { GENERATED_MAIN_QUESTION_COUNT };
+export { GENERATED_QUESTION_COUNT };

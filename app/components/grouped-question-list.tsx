@@ -4,8 +4,7 @@ export type GroupedQuestion = {
   id: string;
   nodeId: string;
   body: string;
-  attempts: Array<{ answeredAt: Date }>;
-  reviewStates: Array<{ nextReviewAt: Date }>;
+  reviewStates: Array<{ lastReviewedAt: Date | null; nextReviewAt: Date }>;
 };
 
 type GroupedQuestionListProps = {
@@ -50,7 +49,7 @@ export function GroupedQuestionList({
                 questionId={question.id}
                 questionBody={question.body}
                 returnTo={returnTo}
-                lastAnsweredAt={question.attempts[0]?.answeredAt ?? null}
+                lastAnsweredAt={question.reviewStates[0]?.lastReviewedAt ?? null}
                 nextReviewAt={question.reviewStates[0]?.nextReviewAt ?? null}
                 now={now}
               />

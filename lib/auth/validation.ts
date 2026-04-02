@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-import { GENERATED_QUESTION_SUGGESTION_COUNT, MAX_GENERATED_QUESTION_LENGTH } from "@/lib/quiz/constants";
-
 export const signupSchema = z.object({
   name: z.string().trim().min(2).max(80),
   email: z.string().trim().email().max(160),
@@ -54,45 +52,10 @@ export const questionDeleteSchema = questionSettingsSchema.extend({
   confirmDelete: z.literal("DELETE"),
 });
 
-export const questionAttemptCreateSchema = z.object({
+export const quizInteractionSchema = z.object({
   questionId: z.cuid(),
-  answer: z.string().trim().min(1).max(4000),
+  intent: z.enum(["hint", "submit"]),
+  answer: z.string().max(4000).optional(),
   from: z.string().startsWith("/").optional(),
   mode: z.string().trim().min(1).max(32).optional(),
-});
-
-export const questionAttemptResetSchema = z.object({
-  questionId: z.cuid(),
-  from: z.string().startsWith("/").optional(),
-  mode: z.string().trim().min(1).max(32).optional(),
-});
-
-export const questionHintRequestSchema = z.object({
-  questionId: z.cuid(),
-  from: z.string().startsWith("/").optional(),
-  mode: z.string().trim().min(1).max(32).optional(),
-  hint1: z.string().trim().min(1).max(400).optional(),
-  hint2: z.string().trim().min(1).max(400).optional(),
-  hint3: z.string().trim().min(1).max(400).optional(),
-});
-
-const generatedQuestionFieldSchema = z.string().trim().min(1).max(MAX_GENERATED_QUESTION_LENGTH).optional();
-
-export const generatedQuestionAddSchema = z.object({
-  questionId: z.cuid(),
-  from: z.string().startsWith("/").optional(),
-  mode: z.string().trim().min(1).max(32).optional(),
-  candidateIndex: z.coerce.number().int().min(0).max(GENERATED_QUESTION_SUGGESTION_COUNT - 1),
-  generated1: generatedQuestionFieldSchema,
-  generated2: generatedQuestionFieldSchema,
-  generated3: generatedQuestionFieldSchema,
-});
-
-export const generatedQuestionAddAllSchema = z.object({
-  questionId: z.cuid(),
-  from: z.string().startsWith("/").optional(),
-  mode: z.string().trim().min(1).max(32).optional(),
-  generated1: generatedQuestionFieldSchema,
-  generated2: generatedQuestionFieldSchema,
-  generated3: generatedQuestionFieldSchema,
 });

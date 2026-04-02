@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  GENERATED_MAIN_QUESTION_COUNT,
+  GENERATED_QUESTION_COUNT,
   finalizeGeneratedQuestion,
   postProcessGeneratedQuestions,
 } from "@/lib/questions/generation";
@@ -44,7 +44,7 @@ describe("question generation utilities", () => {
       "Q7?",
     ]);
 
-    expect(questions).toHaveLength(GENERATED_MAIN_QUESTION_COUNT);
+    expect(questions).toHaveLength(GENERATED_QUESTION_COUNT);
     expect(questions).toEqual(["Q1?", "Q2?", "Q3?", "Q4?", "Q5?"]);
   });
 });

@@ -2,7 +2,10 @@ import Link from "next/link";
 
 import { AnswerCard } from "@/app/components/quiz/answer-card";
 import { FeedbackCard } from "@/app/components/quiz/feedback-card";
-import { GeneratedQuestionSuggestions } from "@/app/components/quiz/generated-question-suggestions";
+import {
+  GeneratedQuestionSuggestions,
+  type GeneratedQuestionSuggestionStatus,
+} from "@/app/components/quiz/generated-question-suggestions";
 import { QuestionCard } from "@/app/components/quiz/question-card";
 import { type QuizSubmissionFeedback } from "@/lib/quiz/session-state";
 
@@ -18,12 +21,15 @@ type QuizBodyProps = {
     feedback: QuizSubmissionFeedback;
   } | null;
   generatedQuestions: string[];
+  generatedQuestionStatuses: Record<string, GeneratedQuestionSuggestionStatus | undefined>;
   formAction: (formData: FormData) => void;
   onDraftAnswerChange: (nextValue: string) => void;
   onReset: () => void;
   onAddGeneratedQuestion: (question: string) => void | Promise<void>;
+  onRemoveGeneratedQuestion: (question: string) => void | Promise<void>;
   onAddAllGeneratedQuestions: () => void | Promise<void>;
   pendingGeneratedQuestion: string | null;
+  pendingGeneratedQuestionAction: "add" | "remove" | null;
   addAllPending: boolean;
 };
 
@@ -35,12 +41,15 @@ export function QuizBody({
   activeHints,
   submission,
   generatedQuestions,
+  generatedQuestionStatuses,
   formAction,
   onDraftAnswerChange,
   onReset,
   onAddGeneratedQuestion,
+  onRemoveGeneratedQuestion,
   onAddAllGeneratedQuestions,
   pendingGeneratedQuestion,
+  pendingGeneratedQuestionAction,
   addAllPending,
 }: QuizBodyProps) {
   const hasSubmission = submission !== null;
@@ -72,9 +81,12 @@ export function QuizBody({
       {hasSubmission && generatedQuestions.length > 0 ? (
         <GeneratedQuestionSuggestions
           questions={generatedQuestions}
+          questionStatuses={generatedQuestionStatuses}
           onAdd={onAddGeneratedQuestion}
+          onRemove={onRemoveGeneratedQuestion}
           onAddAll={onAddAllGeneratedQuestions}
           pendingQuestion={pendingGeneratedQuestion}
+          pendingQuestionAction={pendingGeneratedQuestionAction}
           addAllPending={addAllPending}
         />
       ) : null}

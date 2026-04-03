@@ -8,6 +8,7 @@ import {
   generateQuestionsPreviewAction,
 } from "@/app/actions/questions";
 import { initialGeneratedQuestionPreviewState } from "@/lib/questions/question-generator-preview";
+import { GENERATED_QUESTION_TIER_LABELS } from "@/lib/quiz/constants";
 
 type QuestionGeneratorPanelProps = {
   nodeId: string;
@@ -75,7 +76,7 @@ export function QuestionGeneratorPanel({ nodeId, targetLabel, returnTo }: Questi
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Generate quiz questions for {resolvedTargetLabel}</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Generate five preview-only questions for the currently selected node.
+            Generate three preview-only questions for the currently selected node: easy, medium, and hard.
           </p>
         </div>
 
@@ -95,7 +96,7 @@ export function QuestionGeneratorPanel({ nodeId, targetLabel, returnTo }: Questi
             <textarea
               name="notes"
               className="min-h-24 rounded-md border border-zinc-300 px-3 py-2 text-sm"
-              placeholder="Book, chapter, lecture context, or any constraints for the generated questions"
+              placeholder="Book, chapter, lecture context, notes, etc..."
             />
           </label>
 
@@ -128,6 +129,7 @@ export function QuestionGeneratorPanel({ nodeId, targetLabel, returnTo }: Questi
           <div className="flex flex-col gap-3">
             {visibleQuestions.map((question, index) => {
               const isSaving = pendingQuestionId === question.id;
+              const tierLabel = GENERATED_QUESTION_TIER_LABELS[index] ?? `Preview ${index + 1}`;
 
               return (
                 <div
@@ -136,7 +138,7 @@ export function QuestionGeneratorPanel({ nodeId, targetLabel, returnTo }: Questi
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Preview {index + 1}
+                      {tierLabel}
                     </p>
                     <p className="mt-2 text-sm text-slate-900">{question.body}</p>
                   </div>

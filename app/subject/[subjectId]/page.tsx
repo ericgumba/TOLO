@@ -51,7 +51,7 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
     id: string;
     nodeId: string;
     body: string;
-    reviewStates: Array<{ lastReviewedAt: Date | null; nextReviewAt: Date }>;
+    reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
   }> = [];
   const now = new Date();
   const questionDelegate = (
@@ -63,7 +63,7 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
             id: string;
             nodeId: string;
             body: string;
-            reviewStates: Array<{ lastReviewedAt: Date | null; nextReviewAt: Date }>;
+            reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
           }>
         >;
       };
@@ -100,7 +100,7 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
               },
               take: 1,
               select: {
-                lastReviewedAt: true,
+                lastAnsweredAt: true,
                 nextReviewAt: true,
               },
             },

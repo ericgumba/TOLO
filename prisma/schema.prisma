@@ -90,6 +90,7 @@ model ReviewState {
   status          ReviewStatus @default(NEW)
   intervalDays    Int          @default(1)
   repetitionCount Int          @default(0)
+  lastAnsweredAt  DateTime?
   lastReviewedAt  DateTime?
   lastQuizAccessedAt DateTime?
   nextReviewAt    DateTime

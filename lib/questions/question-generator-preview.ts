@@ -14,9 +14,22 @@ export type GeneratedQuestionPreviewState = {
 export type AddGeneratedQuestionResult =
   | {
       status: "success";
+      questionId: string;
     }
   | {
       status: "duplicate";
+    }
+  | {
+      status: "error";
+      error: string;
+    };
+
+export type RemoveGeneratedQuestionResult =
+  | {
+      status: "success";
+    }
+  | {
+      status: "not_found";
     }
   | {
       status: "error";

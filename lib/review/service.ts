@@ -193,6 +193,17 @@ export async function upsertReviewStateFromAttempt(input: {
       nextReviewAt: existingState.nextReviewAt,
     })
   ) {
+    await prisma.reviewState.update({
+      where: {
+        userId_questionId: {
+          userId: input.userId,
+          questionId: input.questionId,
+        },
+      },
+      data: {
+        lastAnsweredAt: input.reviewedAt,
+      },
+    });
     return;
   }
 
@@ -216,6 +227,7 @@ export async function upsertReviewStateFromAttempt(input: {
       status: next.status,
       intervalDays: next.intervalDays,
       repetitionCount: next.repetitionCount,
+      lastAnsweredAt: input.reviewedAt,
       lastReviewedAt: next.lastReviewedAt,
       nextReviewAt: next.nextReviewAt,
     },
@@ -223,6 +235,7 @@ export async function upsertReviewStateFromAttempt(input: {
       status: next.status,
       intervalDays: next.intervalDays,
       repetitionCount: next.repetitionCount,
+      lastAnsweredAt: input.reviewedAt,
       lastReviewedAt: next.lastReviewedAt,
       nextReviewAt: next.nextReviewAt,
     },

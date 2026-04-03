@@ -62,12 +62,16 @@ describe("QuizBody", () => {
     activeHints: [] as string[],
     submission: null,
     generatedQuestions: [] as string[],
+    generatedQuestionStatuses: {},
     formAction: vi.fn(),
     onDraftAnswerChange: vi.fn(),
     onReset: vi.fn(),
     onAddGeneratedQuestion: vi.fn(),
+    onRemoveGeneratedQuestion: vi.fn(),
     onAddAllGeneratedQuestions: vi.fn(),
-    isAddingGeneratedQuestions: false,
+    pendingGeneratedQuestion: null as string | null,
+    pendingGeneratedQuestionAction: null as "add" | "remove" | null,
+    addAllPending: false,
   };
 
   it("shows the editable answer form before submission", () => {
@@ -116,5 +120,8 @@ describe("QuizBody", () => {
       "Generated question two?",
       "Generated question three?",
     ]);
+    expect(
+      suggestionSections[0] && isValidElement(suggestionSections[0]) ? suggestionSections[0].props.questionStatuses : undefined,
+    ).toEqual({});
   });
 });

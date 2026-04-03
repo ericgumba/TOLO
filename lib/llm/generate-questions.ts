@@ -4,6 +4,7 @@ import { type LlmCallResult } from "@/lib/llm/result";
 import { postProcessGeneratedQuestions } from "@/lib/questions/generation";
 import {
   GENERATED_QUESTION_COUNT,
+  GENERATED_QUESTION_TIER_LABELS,
   RAW_GENERATED_QUESTION_COUNT,
 } from "@/lib/quiz/constants";
 
@@ -32,10 +33,16 @@ export async function generateQuestionsForNode(
           content:
             "You generate concise quiz questions for a learning app.\n\n" +
             "Return strict JSON with key:\n" +
-            "- questions (array of strings)\n\n" +
+            `- questions (array of exactly ${GENERATED_QUESTION_COUNT} strings)\n\n` +
             "Rules:\n" +
-            `- Generate ${RAW_GENERATED_QUESTION_COUNT} distinct candidates.\n` +
+            `- Generate exactly ${RAW_GENERATED_QUESTION_COUNT} distinct questions.\n` +
+            "- Generate candidate quiz questions that fit this same topic and do not repeat wording or meaning of existing questions.\n" +
             "- Each question must stand alone as a future quiz question.\n" +
+            `- Order them as ${GENERATED_QUESTION_TIER_LABELS.map((label) => label.toLowerCase()).join(", ")}.\n` +
+            "- Easy should be basic, short, and single-concept.\n" +
+            "- The medium question should deepen the same concept without depending on pronouns or prior wording.\n" +
+            "- The hard question should deepen the same concept further while remaining fully self-contained.\n" +
+            "- Do not use transitional wording like 'Building on that', 'Given that', 'Now that', or similar references to earlier questions.\n" +
             "- Prefer explanation, application, comparison, mechanism, or tradeoff questions.\n" +
             "- Avoid generic wording, trivia, or source-attribution prompts.\n" +
             "- Do not repeat or lightly paraphrase any existing question.\n" +
@@ -49,7 +56,9 @@ export async function generateQuestionsForNode(
             `Target node level: ${input.nodeLevel}\n` +
             `Optional notes: ${notesText}\n\n` +
             `Existing questions in scope:\n${existingQuestionsText}\n\n` +
-            `Generate ${RAW_GENERATED_QUESTION_COUNT} candidate quiz questions.`,
+            `Generate ${RAW_GENERATED_QUESTION_COUNT} candidate quiz questions.\n` +
+            `Return them in order: ${GENERATED_QUESTION_TIER_LABELS.map((label) => label.toLowerCase()).join(", ")}.\n` +
+            "Have them build in difficulty and conceptual depth while keeping each question fully standalone.",
         },
       ],
     });

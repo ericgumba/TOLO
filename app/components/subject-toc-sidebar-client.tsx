@@ -13,6 +13,30 @@ type SubjectTocSidebarClientProps = {
   activeSubtopicId?: string;
 };
 
+function DeleteIconButton({
+  label,
+  sizeClass,
+  onClick,
+}: {
+  label: string;
+  sizeClass: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      className={`flex ${sizeClass} shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600`}
+      onClick={onClick}
+    >
+      <svg aria-hidden="true" viewBox="0 0 12 12" className="size-3.5" fill="none">
+        <path d="M2.25 2.25L9.75 9.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M9.75 2.25L2.25 9.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
+}
+
 function getTopicHref(subjectId: string, topicId: string, isActive: boolean, activeSubtopicId?: string): string {
   if (!isActive) {
     return `/subject/${subjectId}/topic/${topicId}`;
@@ -80,28 +104,19 @@ export function SubjectTocSidebarClient({
       </div>
 
       {isManaging ? (
-        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Manage mode is on. Delete actions cascade to nested content.
-        </div>
-      ) : null}
-
-      {isManaging ? (
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Subject</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">{subject.title}</p>
             </div>
-            <button
-              type="button"
-              aria-label={`Delete subject ${subject.title}`}
-              className="flex size-9 items-center justify-center rounded-md border border-red-300 text-sm font-bold text-red-700 hover:bg-red-50"
+            <DeleteIconButton
+              label={`Delete subject ${subject.title}`}
+              sizeClass="size-9"
               onClick={() =>
                 pendingDeleteNodeId === subject.id ? cancelDelete() : startDelete(subject.id)
               }
-            >
-              X
-            </button>
+            />
           </div>
 
           {pendingDeleteNodeId === subject.id ? (
@@ -150,16 +165,13 @@ export function SubjectTocSidebarClient({
                     </Link>
 
                     {isManaging ? (
-                      <button
-                        type="button"
-                        aria-label={`Delete topic ${topic.title}`}
-                        className="flex size-9 shrink-0 items-center justify-center rounded-md border border-red-300 text-sm font-bold text-red-700 hover:bg-red-50"
+                      <DeleteIconButton
+                        label={`Delete topic ${topic.title}`}
+                        sizeClass="size-9"
                         onClick={() =>
                           isConfirmingTopicDelete ? cancelDelete() : startDelete(topic.id)
                         }
-                      >
-                        X
-                      </button>
+                      />
                     ) : null}
                   </div>
 
@@ -203,16 +215,13 @@ export function SubjectTocSidebarClient({
                               </Link>
 
                               {isManaging ? (
-                                <button
-                                  type="button"
-                                  aria-label={`Delete subtopic ${subtopic.title}`}
-                                  className="flex size-8 shrink-0 items-center justify-center rounded-md border border-red-300 text-xs font-bold text-red-700 hover:bg-red-50"
+                                <DeleteIconButton
+                                  label={`Delete subtopic ${subtopic.title}`}
+                                  sizeClass="size-8"
                                   onClick={() =>
                                     isConfirmingSubtopicDelete ? cancelDelete() : startDelete(subtopic.id)
                                   }
-                                >
-                                  X
-                                </button>
+                                />
                               ) : null}
                             </div>
 

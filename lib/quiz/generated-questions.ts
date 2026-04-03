@@ -1,7 +1,4 @@
-import {
-  GENERATED_QUESTION_SUGGESTION_COUNT,
-  MAX_GENERATED_QUESTION_LENGTH,
-} from "@/lib/quiz/constants";
+import { GENERATED_QUESTION_SUGGESTION_COUNT } from "@/lib/quiz/constants";
 
 type GeneratedQuestionFields = {
   generated1?: unknown;
@@ -14,13 +11,7 @@ function collapseWhitespace(value: string): string {
 }
 
 function trimGeneratedQuestion(value: string): string {
-  const collapsed = collapseWhitespace(value);
-
-  if (collapsed.length <= MAX_GENERATED_QUESTION_LENGTH) {
-    return collapsed;
-  }
-
-  return collapsed.slice(0, MAX_GENERATED_QUESTION_LENGTH).trimEnd();
+  return collapseWhitespace(value);
 }
 
 function buildQuestionLead(question: string): string {
@@ -64,10 +55,8 @@ export function buildFallbackGeneratedQuestionSuggestions(question: string): str
 
   return [
     `What is the core idea behind "${lead}"?`,
-    `What is one concrete example that illustrates "${lead}"?`,
-    `Why does "${lead}" matter in practice?`,
-    `How would you explain "${lead}" to someone seeing it for the first time?`,
-    `What mistake do people commonly make when thinking about "${lead}"?`,
+    `How does "${lead}" work in a simple example?`,
+    `What tradeoff or failure case would test real understanding of "${lead}"?`,
   ].map(trimGeneratedQuestion);
 }
 

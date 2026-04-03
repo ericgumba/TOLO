@@ -1,7 +1,4 @@
-import {
-  GENERATED_QUESTION_COUNT,
-  MAX_GENERATED_QUESTION_LENGTH,
-} from "@/lib/quiz/constants";
+import { GENERATED_QUESTION_COUNT } from "@/lib/quiz/constants";
 import { normalizeQuestionText } from "@/lib/quiz/generated-questions";
 
 function collapseWhitespace(value: string): string {
@@ -15,11 +12,7 @@ export function finalizeGeneratedQuestion(value: string): string | null {
     return null;
   }
 
-  if (collapsed.length <= MAX_GENERATED_QUESTION_LENGTH) {
-    return collapsed;
-  }
-
-  return collapsed.slice(0, MAX_GENERATED_QUESTION_LENGTH).trimEnd();
+  return collapsed;
 }
 
 export function postProcessGeneratedQuestions(

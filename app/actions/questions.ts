@@ -20,6 +20,7 @@ import { GENERATED_QUESTION_COUNT } from "@/lib/questions/generation";
 import {
   type AddGeneratedQuestionResult,
   type GeneratedQuestionPreviewState,
+  type RemoveGeneratedQuestionResult,
 } from "@/lib/questions/question-generator-preview";
 import { prisma } from "@/lib/prisma";
 import { normalizeQuestionText } from "@/lib/quiz/generated-questions";
@@ -56,7 +57,7 @@ function mapGenerationFailureReasonToError(reason: LlmCallFailureReason): string
 }
 
 async function createQuestionForUser(userId: string, nodeId: string, body: string) {
-  await prisma.question.create({
+  return prisma.question.create({
     data: {
       userId,
       nodeId,
@@ -290,11 +291,58 @@ export async function addGeneratedQuestionToNodeAction(input: {
   }
 
   try {
-    await createQuestionForUser(userId, parsed.data.nodeId, parsed.data.body);
+    const createdQuestion = await createQuestionForUser(userId, parsed.data.nodeId, parsed.data.body);
+
+    revalidatePath("/dashboard");
+    revalidatePath(returnTo);
+
+    return {
+      status: "success",
+      questionId: createdQuestion.id,
+    };
   } catch {
     return {
       status: "error",
       error: "Could not add the generated question right now.",
+    };
+  }
+}
+
+export async function removeGeneratedQuestionFromNodeAction(input: {
+  questionId: string;
+  returnTo?: string;
+}): Promise<RemoveGeneratedQuestionResult> {
+  const userId = await requireAuthUserId();
+
+  const parsed = questionSettingsSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      error: "Invalid generated question removal input.",
+    };
+  }
+
+  const returnTo = normalizeReturnTo(parsed.data.returnTo);
+  let deleted: { count: number };
+
+  try {
+    deleted = await prisma.question.deleteMany({
+      where: {
+        id: parsed.data.questionId,
+        userId,
+      },
+    });
+  } catch {
+    return {
+      status: "error",
+      error: "Could not remove the generated question right now.",
+    };
+  }
+
+  if (deleted.count === 0) {
+    return {
+      status: "not_found",
     };
   }
 

@@ -1,9 +1,13 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useState } from "react";
 
-import { addGeneratedQuestionToNodeAction } from "@/app/actions/questions";
+import {
+  addGeneratedQuestionToNodeAction,
+  removeGeneratedQuestionFromNodeAction,
+} from "@/app/actions/questions";
 import { runQuizInteractionAction } from "@/app/actions/quiz";
+import { type GeneratedQuestionSuggestionStatus } from "@/app/components/quiz/generated-question-suggestions";
 import { QuizBody } from "@/app/components/quiz/quiz-body";
 import { StatusBanners } from "@/app/components/quiz/status-banners";
 import { initialQuizInteractionState } from "@/lib/quiz/session-state";
@@ -19,28 +23,30 @@ type QuizSessionProps = {
 function QuizSessionInner({ questionId, nodeId, questionBody, from, mode, onReset }: QuizSessionProps & { onReset: () => void }) {
   const [state, formAction] = useActionState(runQuizInteractionAction, initialQuizInteractionState);
   const [draftAnswer, setDraftAnswer] = useState("");
-  const [hiddenQuestions, setHiddenQuestions] = useState<string[]>([]);
+  const [generatedQuestionStatuses, setGeneratedQuestionStatuses] = useState<
+    Record<string, GeneratedQuestionSuggestionStatus | undefined>
+  >({});
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+  const [pendingQuestionAction, setPendingQuestionAction] = useState<"add" | "remove" | null>(null);
   const [addAllPending, setAddAllPending] = useState(false);
   const [addedCount, setAddedCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
-  const [generatedQuestionAddError, setGeneratedQuestionAddError] = useState(false);
-
-  const visibleQuestions = useMemo(
-    () => state.generatedQuestions.filter((question) => !hiddenQuestions.includes(question)),
-    [hiddenQuestions, state.generatedQuestions],
-  );
+  const [generatedQuestionMutationError, setGeneratedQuestionMutationError] = useState(false);
 
   function handleFormAction(formData: FormData) {
     setAddedCount(0);
     setSkippedCount(0);
-    setGeneratedQuestionAddError(false);
+    setGeneratedQuestionMutationError(false);
+    setGeneratedQuestionStatuses({});
+    setPendingQuestion(null);
+    setPendingQuestionAction(null);
     return formAction(formData);
   }
 
   async function handleAddGeneratedQuestion(question: string) {
-    setGeneratedQuestionAddError(false);
+    setGeneratedQuestionMutationError(false);
     setPendingQuestion(question);
+    setPendingQuestionAction("add");
 
     const result = await addGeneratedQuestionToNodeAction({
       nodeId,
@@ -49,27 +55,85 @@ function QuizSessionInner({ questionId, nodeId, questionBody, from, mode, onRese
     });
 
     setPendingQuestion(null);
+    setPendingQuestionAction(null);
 
     if (result.status === "error") {
-      setGeneratedQuestionAddError(true);
+      setGeneratedQuestionMutationError(true);
       return;
     }
 
-    setHiddenQuestions((current) => [...current, question]);
-
     if (result.status === "duplicate") {
+      setGeneratedQuestionStatuses((current) => ({
+        ...current,
+        [question]: {
+          kind: "duplicate",
+        },
+      }));
       setSkippedCount((current) => current + 1);
       return;
     }
 
+    setGeneratedQuestionStatuses((current) => ({
+      ...current,
+      [question]: {
+        kind: "added",
+        questionId: result.questionId,
+      },
+    }));
     setAddedCount((current) => current + 1);
   }
 
+  async function handleRemoveGeneratedQuestion(question: string) {
+    setGeneratedQuestionMutationError(false);
+
+    const status = generatedQuestionStatuses[question];
+    if (!status) {
+      return;
+    }
+
+    setPendingQuestion(question);
+    setPendingQuestionAction("remove");
+
+    if (status.kind === "duplicate") {
+      setGeneratedQuestionStatuses((current) => {
+        const next = { ...current };
+        delete next[question];
+        return next;
+      });
+      setSkippedCount((current) => Math.max(0, current - 1));
+      setPendingQuestion(null);
+      setPendingQuestionAction(null);
+      return;
+    }
+
+    const result = await removeGeneratedQuestionFromNodeAction({
+      questionId: status.questionId,
+      returnTo: from,
+    });
+
+    setPendingQuestion(null);
+    setPendingQuestionAction(null);
+
+    if (result.status === "error") {
+      setGeneratedQuestionMutationError(true);
+      return;
+    }
+
+    setGeneratedQuestionStatuses((current) => {
+      const next = { ...current };
+      delete next[question];
+      return next;
+    });
+    setAddedCount((current) => Math.max(0, current - 1));
+  }
+
   async function handleAddAllGeneratedQuestions() {
-    setGeneratedQuestionAddError(false);
+    setGeneratedQuestionMutationError(false);
     setAddAllPending(true);
 
-    for (const question of visibleQuestions) {
+    const questionsToAdd = state.generatedQuestions.filter((question) => !generatedQuestionStatuses[question]);
+
+    for (const question of questionsToAdd) {
       const result = await addGeneratedQuestionToNodeAction({
         nodeId,
         body: question,
@@ -77,17 +141,28 @@ function QuizSessionInner({ questionId, nodeId, questionBody, from, mode, onRese
       });
 
       if (result.status === "error") {
-        setGeneratedQuestionAddError(true);
+        setGeneratedQuestionMutationError(true);
         break;
       }
 
-      setHiddenQuestions((current) => [...current, question]);
-
       if (result.status === "duplicate") {
+        setGeneratedQuestionStatuses((current) => ({
+          ...current,
+          [question]: {
+            kind: "duplicate",
+          },
+        }));
         setSkippedCount((current) => current + 1);
         continue;
       }
 
+      setGeneratedQuestionStatuses((current) => ({
+        ...current,
+        [question]: {
+          kind: "added",
+          questionId: result.questionId,
+        },
+      }));
       setAddedCount((current) => current + 1);
     }
 
@@ -111,13 +186,16 @@ function QuizSessionInner({ questionId, nodeId, questionBody, from, mode, onRese
               }
             : null
         }
-        generatedQuestions={visibleQuestions}
+        generatedQuestions={state.generatedQuestions}
+        generatedQuestionStatuses={generatedQuestionStatuses}
         formAction={handleFormAction}
         onDraftAnswerChange={setDraftAnswer}
         onReset={onReset}
         onAddGeneratedQuestion={handleAddGeneratedQuestion}
+        onRemoveGeneratedQuestion={handleRemoveGeneratedQuestion}
         onAddAllGeneratedQuestions={handleAddAllGeneratedQuestions}
         pendingGeneratedQuestion={pendingQuestion}
+        pendingGeneratedQuestionAction={pendingQuestionAction}
         addAllPending={addAllPending}
       />
       <StatusBanners
@@ -134,7 +212,7 @@ function QuizSessionInner({ questionId, nodeId, questionBody, from, mode, onRese
         llmLimitReached={state.errorCode === "llm_daily_limit_reached"}
         addedCount={addedCount}
         skippedCount={skippedCount}
-        generatedQuestionAddError={generatedQuestionAddError}
+        generatedQuestionMutationError={generatedQuestionMutationError}
       />
     </>
   );

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 
 import { logoutAction } from "@/app/actions/auth";
 import { auth } from "@/auth";
@@ -16,6 +17,7 @@ function getDisplayName(name: string | null | undefined, email: string | null | 
 }
 
 export async function HomeBanner() {
+  await connection();
   const session = await auth();
   const displayName = getDisplayName(session?.user?.name, session?.user?.email);
 

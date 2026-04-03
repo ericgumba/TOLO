@@ -12,7 +12,7 @@ type StatusBannersProps = {
   llmLimitReached: boolean;
   addedCount: number;
   skippedCount: number;
-  generatedQuestionAddError: boolean;
+  generatedQuestionMutationError: boolean;
 };
 
 export function StatusBanners({
@@ -29,7 +29,7 @@ export function StatusBanners({
   llmLimitReached,
   addedCount,
   skippedCount,
-  generatedQuestionAddError,
+  generatedQuestionMutationError,
 }: StatusBannersProps) {
   if (
     !submitted &&
@@ -45,7 +45,7 @@ export function StatusBanners({
     !llmLimitReached &&
     addedCount === 0 &&
     skippedCount === 0 &&
-    !generatedQuestionAddError
+    !generatedQuestionMutationError
   ) {
     return null;
   }
@@ -131,9 +131,9 @@ export function StatusBanners({
         </section>
       ) : null}
 
-      {generatedQuestionAddError ? (
+      {generatedQuestionMutationError ? (
         <section className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          Could not add the suggested question. Please retry.
+          Could not update the suggested question. Please retry.
         </section>
       ) : null}
     </>

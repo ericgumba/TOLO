@@ -7,12 +7,12 @@ import {
 } from "@/lib/questions/generation";
 
 describe("question generation utilities", () => {
-  it("finalizeGeneratedQuestion trims and caps question text", () => {
+  it("finalizeGeneratedQuestion trims question text without cutting it off", () => {
     const value = finalizeGeneratedQuestion(`  ${"Why does paging matter? ".repeat(20)}  `);
 
     expect(value).not.toBeNull();
     expect(value?.startsWith("Why does paging matter?")).toBe(true);
-    expect(value?.length).toBeLessThanOrEqual(180);
+    expect(value).toBe(`${"Why does paging matter? ".repeat(20)}`.trim());
   });
 
   it("postProcessGeneratedQuestions removes exact and normalized duplicates against existing questions", () => {
@@ -33,7 +33,7 @@ describe("question generation utilities", () => {
     ]);
   });
 
-  it("postProcessGeneratedQuestions returns at most five questions", () => {
+  it("postProcessGeneratedQuestions returns at most three questions", () => {
     const questions = postProcessGeneratedQuestions([
       "Q1?",
       "Q2?",
@@ -45,6 +45,6 @@ describe("question generation utilities", () => {
     ]);
 
     expect(questions).toHaveLength(GENERATED_QUESTION_COUNT);
-    expect(questions).toEqual(["Q1?", "Q2?", "Q3?", "Q4?", "Q5?"]);
+    expect(questions).toEqual(["Q1?", "Q2?", "Q3?"]);
   });
 });

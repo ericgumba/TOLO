@@ -15,6 +15,7 @@ const {
     question: {
       findMany: vi.fn(),
       create: vi.fn(),
+      deleteMany: vi.fn(),
     },
     node: {
       findFirst: vi.fn(),
@@ -55,6 +56,7 @@ vi.mock("@/lib/tree/service", () => ({
 import {
   addGeneratedQuestionToNodeAction,
   generateQuestionsPreviewAction,
+  removeGeneratedQuestionFromNodeAction,
 } from "@/app/actions/questions";
 import { initialGeneratedQuestionPreviewState } from "@/lib/questions/question-generator-preview";
 import { LlmDailyLimitExceededError } from "@/lib/llm/usage-limit";
@@ -62,6 +64,7 @@ import { LlmDailyLimitExceededError } from "@/lib/llm/usage-limit";
 describe("node question generator actions", () => {
   const userId = "c12345678901234567890123";
   const nodeId = "c12345678901234567890124";
+  const createdQuestionId = "c12345678901234567890126";
   const returnTo = `/subject/${nodeId}`;
 
   beforeEach(() => {
@@ -88,17 +91,16 @@ describe("node question generator actions", () => {
       { body: "What is a thread?" },
     ]);
     prismaMock.node.findFirst.mockResolvedValue({ id: nodeId });
-    prismaMock.question.create.mockResolvedValue({ id: "created-question-id" });
+    prismaMock.question.create.mockResolvedValue({ id: createdQuestionId });
+    prismaMock.question.deleteMany.mockResolvedValue({ count: 1 });
     assertCanUseLlmMock.mockResolvedValue(undefined);
     logLlmUsageMock.mockResolvedValue(undefined);
     generateQuestionsForNodeMock.mockResolvedValue({
       ok: true,
       value: [
-        "How does a process differ from a thread?",
-        "Why does process isolation matter?",
-        "How do scheduling decisions affect performance?",
-        "What tradeoffs come with kernel threads?",
-        "How would you explain context switching?",
+        "What is a process?",
+        "How is a process different from a program?",
+        "Why must the OS save a process's state during a context switch?",
       ],
     });
   });
@@ -117,17 +119,15 @@ describe("node question generator actions", () => {
       nodeLevel: "SUBJECT",
       notes: "From chapter 3 of the OS book.",
       existingQuestions: ["What is a process?", "What is a thread?"],
-      desiredCount: 5,
+      desiredCount: 3,
     });
     expect(logLlmUsageMock).toHaveBeenCalledWith(userId, "QUESTION_GENERATION");
     expect(state.status).toBe("success");
     expect(state.targetLabel).toBe("Operating Systems");
     expect(state.generatedQuestions.map((question) => question.body)).toEqual([
-      "How does a process differ from a thread?",
-      "Why does process isolation matter?",
-      "How do scheduling decisions affect performance?",
-      "What tradeoffs come with kernel threads?",
-      "How would you explain context switching?",
+      "What is a process?",
+      "How is a process different from a program?",
+      "Why must the OS save a process's state during a context switch?",
     ]);
   });
 
@@ -210,7 +210,7 @@ describe("node question generator actions", () => {
     });
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard");
     expect(revalidatePathMock).toHaveBeenCalledWith(returnTo);
-    expect(result).toEqual({ status: "success" });
+    expect(result).toEqual({ status: "success", questionId: createdQuestionId });
   });
 
   it("rejects adding a generated question when the node is not owned by the user", async () => {
@@ -241,5 +241,22 @@ describe("node question generator actions", () => {
 
     expect(prismaMock.question.create).not.toHaveBeenCalled();
     expect(result).toEqual({ status: "duplicate" });
+  });
+
+  it("removes a generated question that was previously added", async () => {
+    const result = await removeGeneratedQuestionFromNodeAction({
+      questionId: createdQuestionId,
+      returnTo,
+    });
+
+    expect(prismaMock.question.deleteMany).toHaveBeenCalledWith({
+      where: {
+        id: createdQuestionId,
+        userId,
+      },
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard");
+    expect(revalidatePathMock).toHaveBeenCalledWith(returnTo);
+    expect(result).toEqual({ status: "success" });
   });
 });

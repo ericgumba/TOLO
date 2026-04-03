@@ -125,11 +125,9 @@ function QuizSessionInner({ questionId, nodeId, questionBody, from, mode, onRese
         reset={false}
         saveError={state.errorCode === "attempt_save_failed"}
         attemptTimedOut={state.errorCode === "attempt_timeout"}
-        attemptMissingApiKey={state.errorCode === "attempt_missing_api_key"}
         attemptProviderHttpError={state.errorCode === "attempt_provider_http_error"}
         gradingError={state.errorCode === "attempt_invalid_response" || state.errorCode === "attempt_network_error"}
         hintTimedOut={state.errorCode === "hint_timeout"}
-        hintMissingApiKey={state.errorCode === "hint_missing_api_key"}
         hintProviderHttpError={state.errorCode === "hint_provider_http_error"}
         hintError={state.errorCode === "hint_generation_failed" || state.errorCode === "hint_invalid_response" || state.errorCode === "hint_network_error"}
         hintLimitReached={state.errorCode === "hint_limit_reached"}

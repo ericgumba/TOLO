@@ -4,31 +4,12 @@ import { gradeQuestionAttempt } from "@/lib/llm/grade-question-attempt";
 import { GENERATED_QUESTION_SUGGESTION_COUNT, MAX_GENERATED_QUESTION_LENGTH } from "@/lib/quiz/constants";
 
 describe("gradeQuestionAttempt", () => {
-  const originalApiKey = process.env.OPENAI_API_KEY;
-
   beforeEach(() => {
     vi.unstubAllGlobals();
   });
 
   afterEach(() => {
-    if (originalApiKey === undefined) {
-      delete process.env.OPENAI_API_KEY;
-    } else {
-      process.env.OPENAI_API_KEY = originalApiKey;
-    }
-
     vi.unstubAllGlobals();
-  });
-
-  it("returns an explicit failure when grading is unavailable", async () => {
-    delete process.env.OPENAI_API_KEY;
-
-    const result = await gradeQuestionAttempt("What is photosynthesis?", "It makes energy.");
-
-    expect(result).toEqual({
-      ok: false,
-      reason: "missing_api_key",
-    });
   });
 
   it("normalizes, deduplicates, and backfills generated question suggestions", async () => {

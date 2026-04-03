@@ -3,11 +3,9 @@ type StatusBannersProps = {
   reset: boolean;
   saveError: boolean;
   attemptTimedOut: boolean;
-  attemptMissingApiKey: boolean;
   attemptProviderHttpError: boolean;
   gradingError: boolean;
   hintTimedOut: boolean;
-  hintMissingApiKey: boolean;
   hintProviderHttpError: boolean;
   hintError: boolean;
   hintLimitReached: boolean;
@@ -22,11 +20,9 @@ export function StatusBanners({
   reset,
   saveError,
   attemptTimedOut,
-  attemptMissingApiKey,
   attemptProviderHttpError,
   gradingError,
   hintTimedOut,
-  hintMissingApiKey,
   hintProviderHttpError,
   hintError,
   hintLimitReached,
@@ -40,11 +36,9 @@ export function StatusBanners({
     !reset &&
     !saveError &&
     !attemptTimedOut &&
-    !attemptMissingApiKey &&
     !attemptProviderHttpError &&
     !gradingError &&
     !hintTimedOut &&
-    !hintMissingApiKey &&
     !hintProviderHttpError &&
     !hintError &&
     !hintLimitReached &&
@@ -79,12 +73,6 @@ export function StatusBanners({
       {attemptTimedOut ? (
         <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Grading took too long, so feedback could not be generated. Please retry.
-        </section>
-      ) : null}
-
-      {attemptMissingApiKey ? (
-        <section className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          Grading is unavailable because `OPENAI_API_KEY` is missing.
         </section>
       ) : null}
 
@@ -128,12 +116,6 @@ export function StatusBanners({
       {hintTimedOut ? (
         <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Hint generation timed out. Please retry.
-        </section>
-      ) : null}
-
-      {hintMissingApiKey ? (
-        <section className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          Hint generation is unavailable because `OPENAI_API_KEY` is missing.
         </section>
       ) : null}
 

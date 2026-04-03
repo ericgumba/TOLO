@@ -1,5 +1,4 @@
 export type LlmCallFailureReason =
-  | "missing_api_key"
   | "timeout"
   | "http_error"
   | "invalid_response"

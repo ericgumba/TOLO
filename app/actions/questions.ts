@@ -40,16 +40,12 @@ function normalizeReturnTo(returnTo?: string): string {
 }
 
 function mapGenerationFailureReasonToError(reason: LlmCallFailureReason): string {
-  if (reason === "missing_api_key") {
-    return "LLM is not configured yet. Set OPENAI_API_KEY and retry.";
-  }
-
   if (reason === "timeout") {
     return "Question generation timed out. Please retry.";
   }
 
   if (reason === "http_error") {
-    return "Question generation failed because the LLM provider returned an HTTP error. Please retry. If it keeps happening, reduce notes length or question scope.";
+    return "Question generation failed because the LLM provider returned an HTTP error. Please retry.";
   }
 
   if (reason === "invalid_response") {

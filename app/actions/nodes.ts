@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { nodeCreateSchema, nodeDeleteSchema, nodeUpdateSchema } from "@/lib/auth/validation";
+import { nodeCreateSchema, nodeDeleteSchema, nodeTocDeleteSchema, nodeUpdateSchema } from "@/lib/auth/validation";
 import { prisma } from "@/lib/prisma";
 import { canCreateNode, resolveChildLevel } from "@/lib/tree/rules";
 import { getNodeForUser, getTreeCountSnapshot, getUserSubscription } from "@/lib/tree/service";
@@ -18,6 +18,22 @@ async function requireAuthUserId() {
   }
 
   return session.user.id;
+}
+
+async function deleteNodeForUser(nodeId: string, userId: string) {
+  const node = await getNodeForUser(nodeId, userId);
+
+  if (!node) {
+    redirect("/dashboard?error=Node%20not%20found");
+  }
+
+  try {
+    await prisma.node.delete({
+      where: { id: node.id },
+    });
+  } catch {
+    redirect("/dashboard?error=Unable%20to%20delete%20node.%20Run%20migrations%20and%20try%20again");
+  }
 }
 
 export async function createNodeAction(formData: FormData) {
@@ -125,20 +141,28 @@ export async function deleteNodeAction(formData: FormData) {
     redirect("/dashboard?error=Invalid%20delete%20input");
   }
 
-  const node = await getNodeForUser(parsed.data.nodeId, userId);
-
-  if (!node) {
-    redirect("/dashboard?error=Node%20not%20found");
-  }
-
-  try {
-    await prisma.node.delete({
-      where: { id: node.id },
-    });
-  } catch {
-    redirect("/dashboard?error=Unable%20to%20delete%20node.%20Run%20migrations%20and%20try%20again");
-  }
+  await deleteNodeForUser(parsed.data.nodeId, userId);
 
   revalidatePath("/dashboard");
   redirect("/dashboard");
+}
+
+export async function deleteNodeFromTocAction(formData: FormData) {
+  const userId = await requireAuthUserId();
+
+  const parsed = nodeTocDeleteSchema.safeParse({
+    nodeId: formData.get("nodeId"),
+    returnTo: formData.get("returnTo"),
+    confirmDelete: formData.get("confirmDelete"),
+  });
+
+  if (!parsed.success) {
+    redirect("/dashboard?error=Invalid%20delete%20input");
+  }
+
+  await deleteNodeForUser(parsed.data.nodeId, userId);
+
+  revalidatePath("/dashboard");
+  revalidatePath(parsed.data.returnTo);
+  redirect(parsed.data.returnTo);
 }

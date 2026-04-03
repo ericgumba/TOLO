@@ -26,6 +26,11 @@ export const nodeDeleteSchema = z.object({
   nodeId: z.cuid(),
 });
 
+export const nodeTocDeleteSchema = nodeDeleteSchema.extend({
+  returnTo: z.string().startsWith("/"),
+  confirmDelete: z.literal("DELETE"),
+});
+
 export const questionCreateSchema = z.object({
   nodeId: z.cuid(),
   body: z.string().trim().min(1).max(1000),

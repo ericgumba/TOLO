@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AdBanner } from "@/app/components/ad-banner";
 import { HomeBanner } from "@/app/components/home-banner";
 import "./globals.css";
@@ -26,6 +27,19 @@ export default function RootLayout({
             </div>
           </div>
         </div>
+        <footer className="border-t border-slate-200 bg-white">
+          <div className="mx-auto flex w-full max-w-[90rem] items-center justify-center gap-4 px-6 py-4 text-sm text-slate-600">
+            <Link className="hover:text-slate-900 hover:underline" href="/terms">
+              Terms
+            </Link>
+            <span aria-hidden="true" className="text-slate-300">
+              |
+            </span>
+            <Link className="hover:text-slate-900 hover:underline" href="/privacy">
+              Privacy
+            </Link>
+          </div>
+        </footer>
       </body>
     </html>
   );

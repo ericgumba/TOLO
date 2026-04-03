@@ -62,6 +62,26 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
           />
         </label>
 
+        <label className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600">
+          <input
+            required
+            name="legalAcceptance"
+            type="checkbox"
+            className="mt-0.5 size-4 rounded border-zinc-300 text-zinc-900"
+          />
+          <span>
+            I agree to the{" "}
+            <Link className="font-medium text-zinc-900 underline" href="/terms">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link className="font-medium text-zinc-900 underline" href="/privacy">
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
+
         <button
           type="submit"
           className="mt-2 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"

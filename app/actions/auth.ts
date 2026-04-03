@@ -13,6 +13,7 @@ export async function signupAction(formData: FormData) {
     name: formData.get("name"),
     email: formData.get("email"),
     password: formData.get("password"),
+    legalAcceptance: formData.get("legalAcceptance"),
   });
 
   if (!parsed.success) {

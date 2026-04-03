@@ -60,7 +60,7 @@ export function StatusBanners({
     <>
       {submitted ? (
         <section className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-          Feedback is ready below. This result clears when you refresh or leave the page.
+          These results clear when you refresh or leave the page.
         </section>
       ) : null}
 

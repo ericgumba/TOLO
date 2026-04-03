@@ -148,7 +148,7 @@ export function QuestionGeneratorPanel({ nodeId, targetLabel, returnTo }: Questi
                       onClick={() => handleAdd(question.id, question.body)}
                       className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-400"
                     >
-                      {isSaving ? "Adding..." : "Add to node"}
+                      {isSaving ? "Adding..." : "Add"}
                     </button>
                     <button
                       type="button"

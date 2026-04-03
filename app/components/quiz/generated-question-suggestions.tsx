@@ -55,7 +55,7 @@ export function GeneratedQuestionSuggestions({
                   disabled={isBusy}
                   className="shrink-0 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:opacity-70"
                 >
-                  {isPending ? "Adding..." : "Add to node"}
+                  {isPending ? "Adding..." : "Add"}
                 </button>
               </div>
             );

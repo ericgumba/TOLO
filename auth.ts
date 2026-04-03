@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 
+import { applySessionClaims } from "@/lib/auth/session";
 import { loginSchema } from "@/lib/auth/validation";
 import { prisma } from "@/lib/prisma";
 
@@ -57,12 +58,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return token;
     },
     session: async ({ session, token }) => {
-      if (session.user) {
-        session.user.id = token.sub;
-        session.user.subscriptionStatus = token.subscriptionStatus;
-      }
-
-      return session;
+      return applySessionClaims(session, token);
     },
   },
 });

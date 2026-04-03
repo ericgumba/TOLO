@@ -229,7 +229,7 @@ export async function getNodeGenerationContextForUser(
   }
 
   const pathSegments: string[] = [];
-  let currentNode = targetNode;
+  let currentNode: (typeof targetNode) | null = targetNode;
   while (currentNode) {
     pathSegments.unshift(currentNode.title);
     currentNode = currentNode.parentId ? byId.get(currentNode.parentId) ?? null : null;

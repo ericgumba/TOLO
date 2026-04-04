@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { quizInteractionSchema } from "@/lib/auth/validation";
 import { generateQuestionHint } from "@/lib/llm/generate-question-hint";
 import { gradeQuestionAttempt } from "@/lib/llm/grade-question-attempt";
+import { revealQuestionAnswer } from "@/lib/llm/reveal-question-answer";
 import { type LlmCallFailureReason } from "@/lib/llm/result";
 import { assertCanUseLlm, LlmDailyLimitExceededError, logLlmUsage } from "@/lib/llm/usage-limit";
 import { prisma } from "@/lib/prisma";
@@ -274,6 +275,67 @@ export async function runQuizInteractionAction(
       submittedAnswer: null,
       feedback: null,
       activeHints: [...existingHints, finalHint],
+      revealedAnswer: previousState.revealedAnswer,
+      generatedQuestions: [],
+      errorCode: null,
+    };
+  }
+
+  if (parsed.data.intent === "reveal") {
+    const existingHints = previousState.activeHints;
+
+    if (existingHints.length < 3) {
+      return buildErrorState(previousState, "hint_generation_failed", draftAnswer);
+    }
+
+    if (previousState.revealedAnswer) {
+      return {
+        ...previousState,
+        draftAnswer,
+        errorCode: null,
+      };
+    }
+
+    try {
+      await assertCanUseLlm(session.user.id);
+    } catch (error) {
+      if (error instanceof LlmDailyLimitExceededError) {
+        return buildErrorState(previousState, "llm_daily_limit_reached", draftAnswer);
+      }
+
+      return buildErrorState(previousState, "hint_generation_failed", draftAnswer);
+    }
+
+    const revealedAnswerResult = await revealQuestionAnswer({
+      question: loaded.question.body,
+      context: loaded.context,
+      quizHistory: [],
+      existingHints,
+    });
+
+    if (!revealedAnswerResult.ok) {
+      return buildErrorState(previousState, mapHintFailureReasonToErrorCode(revealedAnswerResult.reason), draftAnswer);
+    }
+
+    const revealedAnswer = revealedAnswerResult.value.trim();
+
+    if (revealedAnswer.length === 0) {
+      return buildErrorState(previousState, "hint_invalid_response", draftAnswer);
+    }
+
+    try {
+      await logLlmUsage(session.user.id, "HINT");
+    } catch {
+      return buildErrorState(previousState, "hint_generation_failed", draftAnswer);
+    }
+
+    return {
+      status: "idle",
+      draftAnswer,
+      submittedAnswer: null,
+      feedback: null,
+      activeHints: existingHints,
+      revealedAnswer,
       generatedQuestions: [],
       errorCode: null,
     };
@@ -339,6 +401,7 @@ export async function runQuizInteractionAction(
       answeredAtIso: answeredAt.toISOString(),
     },
     activeHints: previousState.activeHints,
+    revealedAnswer: previousState.revealedAnswer,
     generatedQuestions: scoringResult.value.generatedQuestions,
     errorCode: null,
   };

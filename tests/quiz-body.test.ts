@@ -60,6 +60,7 @@ describe("QuizBody", () => {
     mode: undefined as string | undefined,
     draftAnswer: "",
     activeHints: [] as string[],
+    revealedAnswer: null as string | null,
     submission: null,
     generatedQuestions: [] as string[],
     generatedQuestionStatuses: {},

@@ -178,6 +178,7 @@ function QuizSessionInner({ questionId, nodeId, questionBody, from, mode, onRese
         mode={mode}
         draftAnswer={draftAnswer}
         activeHints={state.activeHints}
+        revealedAnswer={state.revealedAnswer}
         submission={
           state.feedback && state.submittedAnswer
             ? {

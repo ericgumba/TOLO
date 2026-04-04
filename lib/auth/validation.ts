@@ -60,7 +60,7 @@ export const questionDeleteSchema = questionSettingsSchema.extend({
 
 export const quizInteractionSchema = z.object({
   questionId: z.cuid(),
-  intent: z.enum(["hint", "submit"]),
+  intent: z.enum(["hint", "reveal", "submit"]),
   answer: z.string().max(4000).optional(),
   from: z.string().startsWith("/").optional(),
   mode: z.string().trim().min(1).max(32).optional(),

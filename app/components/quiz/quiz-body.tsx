@@ -16,6 +16,7 @@ type QuizBodyProps = {
   mode?: string;
   draftAnswer: string;
   activeHints: string[];
+  revealedAnswer: string | null;
   submission: {
     answer: string;
     feedback: QuizSubmissionFeedback;
@@ -39,6 +40,7 @@ export function QuizBody({
   from,
   draftAnswer,
   activeHints,
+  revealedAnswer,
   submission,
   generatedQuestions,
   generatedQuestionStatuses,
@@ -71,6 +73,7 @@ export function QuizBody({
             draftAnswer={draftAnswer}
             editable
             hints={activeHints}
+            revealedAnswer={revealedAnswer}
             formAction={formAction}
             onDraftAnswerChange={onDraftAnswerChange}
           />

@@ -103,7 +103,7 @@ export function StatusBanners({
 
       {hintLimitReached ? (
         <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          You have reached the maximum of 3 hints for this active question.
+          You have already used 3 hints for this question. Reveal the answer or submit your own answer.
         </section>
       ) : null}
 
@@ -115,19 +115,19 @@ export function StatusBanners({
 
       {hintTimedOut ? (
         <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Hint generation timed out. Please retry.
+          Hint or answer reveal timed out. Please retry.
         </section>
       ) : null}
 
       {hintProviderHttpError ? (
         <section className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          Hint generation failed because the LLM provider returned an HTTP error. Please retry.
+          Hint or answer reveal failed because the LLM provider returned an HTTP error. Please retry.
         </section>
       ) : null}
 
       {hintError ? (
         <section className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          Could not generate hint because the LLM response was invalid or unavailable. Please retry.
+          Could not generate a hint or reveal the answer because the LLM response was invalid or unavailable. Please retry.
         </section>
       ) : null}
 

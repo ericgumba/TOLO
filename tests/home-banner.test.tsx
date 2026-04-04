@@ -39,6 +39,7 @@ describe("HomeBanner", () => {
     expect(connectionMock).toHaveBeenCalled();
     expect(html).toContain("Welcome Eric Gumba");
     expect(html).toContain("Logout");
+    expect(html).toContain("max-w-[90rem]");
     expect(html).not.toContain("Register");
     expect(html).not.toContain("Login");
   });

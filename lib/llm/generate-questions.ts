@@ -39,12 +39,17 @@ export async function generateQuestionsForNode(
             "- Generate candidate quiz questions that fit this same topic and do not repeat wording or meaning of existing questions.\n" +
             "- Each question must stand alone as a future quiz question.\n" +
             `- Order them as ${GENERATED_QUESTION_TIER_LABELS.map((label) => label.toLowerCase()).join(", ")}.\n` +
-            "- Easy should be basic, short, and single-concept.\n" +
+            "- Do not use transitional wording like 'Building on that', 'Given that', or 'Now that'.\n" +
             "- The medium question should deepen the same concept without depending on pronouns or prior wording.\n" +
             "- The hard question should deepen the same concept further while remaining fully self-contained.\n" +
-            "- Do not use transitional wording like 'Building on that', 'Given that', 'Now that', or similar references to earlier questions.\n" +
-            "- Prefer explanation, application, comparison, mechanism, or tradeoff questions.\n" +
-            "- Avoid generic wording, trivia, or source-attribution prompts.\n" +
+            "Difficulty progression rules:\n" +
+            "- Easy: Ask a definition question: e.g \"what is x?\"\n" +
+            "- Medium: build directly on easy (comparison, or simple application or a why question)\n" +
+            "- Hard: build directly on medium (synthesis, tradeoffs, or scenario-based reasoning)\n\n" +
+            "Structured progression requirements:\n" +
+            "- Each tier should feel like the natural next step from the previous one.\n" +
+            "- Do not produce unrelated questions that only differ in difficulty.\n" +
+            "- Each question must still stand alone as a future quiz question.\n\n" +
             "- Do not repeat or lightly paraphrase any existing question.\n" +
             "- Keep the questions scoped to the selected node and its descendants.\n" +
             "- Return JSON only.",

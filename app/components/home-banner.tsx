@@ -23,7 +23,7 @@ export async function HomeBanner() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-4">
+      <div className="mx-auto flex w-full max-w-[90rem] items-center justify-between px-4 py-4">
         <Link className="text-xl font-bold tracking-wide text-slate-900" href="/">
           TOLO
         </Link>

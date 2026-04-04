@@ -11,6 +11,10 @@ describe("getQuizFormPendingIntent", () => {
     const hintData = new FormData();
     hintData.set("intent", "hint");
     expect(getQuizFormPendingIntent(hintData)).toBe("hint");
+
+    const revealData = new FormData();
+    revealData.set("intent", "reveal");
+    expect(getQuizFormPendingIntent(revealData)).toBe("reveal");
   });
 
   it("returns null when no recognized intent is present", () => {
@@ -27,6 +31,7 @@ describe("getQuizFormButtonsState", () => {
     expect(
       getQuizFormButtonsState({
         hintCount: 0,
+        answerRevealed: false,
         intent: null,
         isBusy: false,
         isSlow: false,
@@ -34,6 +39,7 @@ describe("getQuizFormButtonsState", () => {
     ).toEqual({
       hintDisabled: false,
       hintLabel: "Hint",
+      hintIntent: "hint",
       submitDisabled: false,
       submitLabel: "Submit",
       slowMessage: null,
@@ -44,6 +50,7 @@ describe("getQuizFormButtonsState", () => {
     expect(
       getQuizFormButtonsState({
         hintCount: 1,
+        answerRevealed: false,
         intent: "submit",
         isBusy: true,
         isSlow: false,
@@ -51,23 +58,45 @@ describe("getQuizFormButtonsState", () => {
     ).toEqual({
       hintDisabled: true,
       hintLabel: "Hint",
+      hintIntent: "hint",
       submitDisabled: true,
       submitLabel: "Submitting...",
       slowMessage: null,
     });
   });
 
-  it("keeps the hint limit enforced even when the form is idle", () => {
+  it("switches the hint button to reveal the answer after the third hint", () => {
     expect(
       getQuizFormButtonsState({
         hintCount: 3,
+        answerRevealed: false,
+        intent: null,
+        isBusy: false,
+        isSlow: false,
+      }),
+    ).toEqual({
+      hintDisabled: false,
+      hintLabel: "Reveal answer",
+      hintIntent: "reveal",
+      submitDisabled: false,
+      submitLabel: "Submit",
+      slowMessage: null,
+    });
+  });
+
+  it("disables the reveal button after the answer has already been revealed", () => {
+    expect(
+      getQuizFormButtonsState({
+        hintCount: 3,
+        answerRevealed: true,
         intent: null,
         isBusy: false,
         isSlow: false,
       }),
     ).toEqual({
       hintDisabled: true,
-      hintLabel: "Hint",
+      hintLabel: "Answer revealed",
+      hintIntent: "reveal",
       submitDisabled: false,
       submitLabel: "Submit",
       slowMessage: null,
@@ -78,6 +107,7 @@ describe("getQuizFormButtonsState", () => {
     expect(
       getQuizFormButtonsState({
         hintCount: 0,
+        answerRevealed: false,
         intent: "submit",
         isBusy: true,
         isSlow: true,
@@ -85,6 +115,7 @@ describe("getQuizFormButtonsState", () => {
     ).toEqual({
       hintDisabled: true,
       hintLabel: "Hint",
+      hintIntent: "hint",
       submitDisabled: true,
       submitLabel: "Submitting...",
       slowMessage: "Still waiting on the server. If grading does not finish soon, this attempt will time out and return an error.",

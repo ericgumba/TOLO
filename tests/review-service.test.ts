@@ -80,9 +80,15 @@ describe("upsertReviewStateFromAttempt", () => {
     expect(prismaMock.reviewState.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({
+          intervalDays: 1,
+          repetitionCount: 1,
+          status: "LEARNING",
           lastAnsweredAt: new Date("2026-03-26T12:00:00.000Z"),
         }),
         update: expect.objectContaining({
+          intervalDays: 1,
+          repetitionCount: 1,
+          status: "LEARNING",
           lastAnsweredAt: new Date("2026-03-26T12:00:00.000Z"),
         }),
       }),

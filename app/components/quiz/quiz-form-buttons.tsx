@@ -11,9 +11,10 @@ import {
 
 type QuizFormButtonsProps = {
   hintCount: number;
+  answerRevealed: boolean;
 };
 
-export function QuizFormButtons({ hintCount }: QuizFormButtonsProps) {
+export function QuizFormButtons({ hintCount, answerRevealed }: QuizFormButtonsProps) {
   const { pending, data } = useFormStatus();
   const [isSlow, setIsSlow] = useState(false);
 
@@ -33,6 +34,7 @@ export function QuizFormButtons({ hintCount }: QuizFormButtonsProps) {
   const intent = pending ? getQuizFormPendingIntent(data) : null;
   const state = getQuizFormButtonsState({
     hintCount,
+    answerRevealed,
     intent,
     isBusy: pending,
     isSlow,
@@ -44,7 +46,7 @@ export function QuizFormButtons({ hintCount }: QuizFormButtonsProps) {
         <button
           type="submit"
           name="intent"
-          value="hint"
+          value={state.hintIntent}
           formNoValidate
           className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={state.hintDisabled}

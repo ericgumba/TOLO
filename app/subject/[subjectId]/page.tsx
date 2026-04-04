@@ -197,7 +197,6 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
               emptyMessage="No questions created for this subject yet."
             />
           </section>
-
         </div>
       </div>
     </main>

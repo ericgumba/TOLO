@@ -66,17 +66,17 @@ export async function gradeQuestionAttempt(
           "- correction (string)\n" +
           `- generatedQuestions (array of exactly ${GENERATED_QUESTION_SUGGESTION_COUNT} strings)\n\n` +
           "Scoring rubric:\n" +
-          "- 90..100: substantively correct and clear, even if concise\n" +
-          "- 70..89: mostly correct, minor omission or imprecision\n" +
-          "- 40..69: partially correct but with an important gap or confusion\n" +
-          "- 1..39: mostly incorrect or seriously confused\n" +
-          "Do not lower the score only because the answer is brief if it is substantively correct.\n\n" +
+            "- 90..100: substantively correct and clear, even if concise\n" +
+            "- 70..89: mostly correct, minor omission or imprecision\n" +
+            "- 40..69: partially correct but with an important gap or confusion\n" +
+            "- 1..39: mostly incorrect or seriously confused\n" +
+            "Do not lower the score only because the answer is brief if it is substantively correct.\n\n" +
           "Field rules:\n" +
-          "- diagnosis must name ONE core concept to focus on next.\n" +
-          "- diagnosisType must reflect the student's main issue.\n" +
-          "- feedback must briefly state what is correct and what is missing or unclear (1–3 sentences).\n" +
-          "- correction must give a clean, concise, correct answer to the original question.\n" +
-          "- If the answer is correct, diagnosis should point to the next related concept to reinforce.\n\n" +
+            "- diagnosis must name ONE core concept to focus on next.\n" +
+            "- diagnosisType must reflect the student's main issue.\n" +
+            "- feedback must briefly state what is correct and what is missing or unclear (1–3 sentences).\n" +
+            "- correction must give a clean, concise, correct answer to the original question.\n" +
+            "- If the answer is correct, diagnosis should point to the next related concept to reinforce.\n\n" +
           `Always generate exactly ${GENERATED_QUESTION_SUGGESTION_COUNT} distinct future study questions for the same topic.\n` +
           "Question anchoring rules:\n" +
           "- Anchor all questions to the diagnosis or an immediately related prerequisite concept.\n" +
@@ -84,25 +84,21 @@ export async function gradeQuestionAttempt(
           "- A question counts as a duplicate even if reworded, if it tests the same concept in nearly the same way.\n\n" +
           `Order generatedQuestions as ${suggestionTierOrderInstruction}.\n` +
           "The questions must form a pedagogically coherent progression around ONE core concept.\n\n" +
-          "Difficulty progression rules:\n" +
-          "- Easy: establish foundation (definition, identification, simple example, or basic mechanism)\n" +
-          "- Medium: build directly on easy (explanation, comparison, or simple application)\n" +
-          "- Hard: build directly on medium (synthesis, edge cases, tradeoffs, debugging, or scenario-based reasoning)\n\n" +
-          "Structured progression requirements:\n" +
-          "- The easy question should introduce the minimal foundation needed.\n" +
+          "Standalone wording rules:\n" +
+          "- Do not use transitional wording like 'Building on that', 'Given that', or 'Now that'.\n" +
           "- The medium question should deepen the same concept while remaining fully self-contained.\n" +
-          "- The hard question should deepen the same concept further while remaining fully self-contained.\n" +
+          "- The hard question should deepen the same concept further while remaining fully self-contained.\n\n" +
+          "Difficulty progression rules:\n" +
+          "- Easy: Ask a definition question: e.g \"what is x?\"\n" +
+          "- Medium: build directly on easy (comparison, or simple application or a why question)\n" +
+          "- Hard: build directly on medium (synthesis, tradeoffs, or scenario-based reasoning)\n\n" +
+          "Structured progression requirements:\n" +
           "- Each tier should feel like the natural next step from the previous one.\n" +
           "- Do not produce unrelated questions that only differ in difficulty.\n" +
           "- Each question must still stand alone as a future quiz question.\n\n" +
           "Question quality rules:\n" +
           "- Keep questions concise and specific.\n" +
           "- Prefer short wording over multi-clause phrasing.\n" +
-          "- Do not use transitional wording like 'Building on that', 'Given that', 'Now that', or similar references to earlier questions.\n" +
-          "- Avoid generic phrasing and fluff.\n" +
-          "- Avoid trivia and source-attribution questions.\n" +
-          "- Prefer understanding, explanation, example, application, comparison, or failure-mode questions.\n\n" +
-
           "Return JSON only.",
         },
         {

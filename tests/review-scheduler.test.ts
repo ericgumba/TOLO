@@ -21,7 +21,7 @@ describe("createInitialReviewState", () => {
 });
 
 describe("computeNextReviewState", () => {
-  it("advances from 1 day to 3 days regardless of score", () => {
+  it("keeps the first due answer at 1 day regardless of score", () => {
     const reviewedAt = new Date("2026-03-25T00:00:00.000Z");
 
     const lowScore = computeNextReviewState({
@@ -38,60 +38,84 @@ describe("computeNextReviewState", () => {
       currentRepetitionCount: 0,
     });
 
-    expect(lowScore.status).toBe(REVIEW_STATUS.REVIEW);
-    expect(lowScore.intervalDays).toBe(3);
+    expect(lowScore.status).toBe(REVIEW_STATUS.LEARNING);
+    expect(lowScore.intervalDays).toBe(1);
     expect(lowScore.repetitionCount).toBe(1);
-    expect(highScore.status).toBe(REVIEW_STATUS.REVIEW);
-    expect(highScore.intervalDays).toBe(3);
+    expect(highScore.status).toBe(REVIEW_STATUS.LEARNING);
+    expect(highScore.intervalDays).toBe(1);
     expect(highScore.repetitionCount).toBe(1);
   });
 
   it("advances through the fixed interval ladder", () => {
     const reviewedAt = new Date("2026-03-25T00:00:00.000Z");
+    const toTwo = computeNextReviewState({
+      llmScore: 65,
+      reviewedAt,
+      currentIntervalDays: 1,
+      currentRepetitionCount: 1,
+    });
+
+    const toThree = computeNextReviewState({
+      llmScore: 25,
+      reviewedAt,
+      currentIntervalDays: 2,
+      currentRepetitionCount: 2,
+    });
+
     const toSeven = computeNextReviewState({
       llmScore: 65,
       reviewedAt,
       currentIntervalDays: 3,
-      currentRepetitionCount: 1,
+      currentRepetitionCount: 3,
     });
 
     const toFourteen = computeNextReviewState({
       llmScore: 25,
       reviewedAt,
       currentIntervalDays: 7,
-      currentRepetitionCount: 2,
+      currentRepetitionCount: 4,
     });
 
     const toThirty = computeNextReviewState({
       llmScore: 90,
       reviewedAt,
       currentIntervalDays: 14,
-      currentRepetitionCount: 3,
+      currentRepetitionCount: 5,
     });
 
     const toSixty = computeNextReviewState({
       llmScore: 90,
       reviewedAt,
       currentIntervalDays: 30,
-      currentRepetitionCount: 4,
+      currentRepetitionCount: 6,
     });
+
+    expect(toTwo.status).toBe(REVIEW_STATUS.REVIEW);
+    expect(toTwo.intervalDays).toBe(2);
+    expect(toTwo.repetitionCount).toBe(2);
+    expect(toTwo.nextReviewAt.toISOString()).toBe("2026-03-27T00:00:00.000Z");
+
+    expect(toThree.status).toBe(REVIEW_STATUS.REVIEW);
+    expect(toThree.intervalDays).toBe(3);
+    expect(toThree.repetitionCount).toBe(3);
+    expect(toThree.nextReviewAt.toISOString()).toBe("2026-03-28T00:00:00.000Z");
 
     expect(toSeven.status).toBe(REVIEW_STATUS.REVIEW);
     expect(toSeven.intervalDays).toBe(7);
-    expect(toSeven.repetitionCount).toBe(2);
+    expect(toSeven.repetitionCount).toBe(4);
     expect(toSeven.nextReviewAt.toISOString()).toBe("2026-04-01T00:00:00.000Z");
 
     expect(toFourteen.status).toBe(REVIEW_STATUS.MASTERED);
     expect(toFourteen.intervalDays).toBe(14);
-    expect(toFourteen.repetitionCount).toBe(3);
+    expect(toFourteen.repetitionCount).toBe(5);
 
     expect(toThirty.status).toBe(REVIEW_STATUS.MASTERED);
     expect(toThirty.intervalDays).toBe(30);
-    expect(toThirty.repetitionCount).toBe(4);
+    expect(toThirty.repetitionCount).toBe(6);
 
     expect(toSixty.status).toBe(REVIEW_STATUS.MASTERED);
     expect(toSixty.intervalDays).toBe(60);
-    expect(toSixty.repetitionCount).toBe(5);
+    expect(toSixty.repetitionCount).toBe(7);
   });
 
   it("caps at the last fixed interval", () => {

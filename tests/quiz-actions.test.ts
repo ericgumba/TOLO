@@ -7,6 +7,7 @@ const {
   prismaMock,
   gradeQuestionAttemptMock,
   generateQuestionHintMock,
+  generateQuestionAnswerMock,
   assertCanUseLlmMock,
   logLlmUsageMock,
   upsertReviewStateFromAttemptMock,
@@ -27,6 +28,7 @@ const {
   },
   gradeQuestionAttemptMock: vi.fn(),
   generateQuestionHintMock: vi.fn(),
+  generateQuestionAnswerMock: vi.fn(),
   assertCanUseLlmMock: vi.fn(),
   logLlmUsageMock: vi.fn(),
   upsertReviewStateFromAttemptMock: vi.fn(),
@@ -54,6 +56,10 @@ vi.mock("@/lib/llm/grade-question-attempt", () => ({
 
 vi.mock("@/lib/llm/generate-question-hint", () => ({
   generateQuestionHint: generateQuestionHintMock,
+}));
+
+vi.mock("@/lib/llm/reveal-question-answer", () => ({
+  revealQuestionAnswer: generateQuestionAnswerMock,
 }));
 
 vi.mock("@/lib/llm/request", () => ({
@@ -119,6 +125,10 @@ describe("runQuizInteractionAction", () => {
     generateQuestionHintMock.mockResolvedValue({
       ok: true,
       value: "Think about the resources and execution context involved.",
+    });
+    generateQuestionAnswerMock.mockResolvedValue({
+      ok: true,
+      value: "TCP detects loss or reordering with sequence numbers and acknowledgments, retransmits missing data, reorders buffered segments, and uses flow control to avoid overwhelming the receiver.",
     });
     assertCanUseLlmMock.mockResolvedValue(undefined);
     logLlmUsageMock.mockResolvedValue(undefined);
@@ -197,6 +207,44 @@ describe("runQuizInteractionAction", () => {
     expect(upsertReviewStateFromAttemptMock).not.toHaveBeenCalled();
   });
 
+  it("reveals the answer after the third hint instead of returning an error", async () => {
+    const state = await runQuizInteractionAction(
+      {
+        ...initialQuizInteractionState,
+        draftAnswer: "Draft answer",
+        activeHints: ["Hint 1", "Hint 2", "Hint 3"],
+      },
+      buildFormData({
+        questionId,
+        answer: "Draft answer",
+        from: `/subject/${nodeId}`,
+        intent: "reveal",
+      }),
+    );
+
+    expect(state.status).toBe("idle");
+    expect(state.feedback).toBeNull();
+    expect(state.generatedQuestions).toEqual([]);
+    expect(state.activeHints).toEqual(["Hint 1", "Hint 2", "Hint 3"]);
+    expect(state.revealedAnswer).toBe(
+      "TCP detects loss or reordering with sequence numbers and acknowledgments, retransmits missing data, reorders buffered segments, and uses flow control to avoid overwhelming the receiver.",
+    );
+    expect(generateQuestionAnswerMock).toHaveBeenCalledWith({
+      question: "Base question",
+      context: [
+        {
+          id: nodeId,
+          title: "Topic",
+          level: "TOPIC",
+        },
+      ],
+      quizHistory: [],
+      existingHints: ["Hint 1", "Hint 2", "Hint 3"],
+    });
+    expect(logLlmUsageMock).toHaveBeenCalledWith(userId, "HINT");
+    expect(upsertReviewStateFromAttemptMock).not.toHaveBeenCalled();
+  });
+
   it("returns an error state when grading fails", async () => {
     gradeQuestionAttemptMock.mockResolvedValue({
       ok: false,
@@ -219,7 +267,7 @@ describe("runQuizInteractionAction", () => {
     expect(upsertReviewStateFromAttemptMock).not.toHaveBeenCalled();
   });
 
-  it("returns an error state when the user asks for too many hints", async () => {
+  it("still rejects stale hint requests after three hints", async () => {
     const state = await runQuizInteractionAction(
       {
         ...initialQuizInteractionState,

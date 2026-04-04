@@ -229,7 +229,6 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
               emptyMessage="No questions created for this node yet."
             />
           </section>
-
         </div>
       </div>
     </main>

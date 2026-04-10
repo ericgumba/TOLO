@@ -1,4 +1,4 @@
-import { GENERATED_QUESTION_SUGGESTION_TIER_SIZE } from "@/lib/quiz/constants";
+import { GENERATED_QUESTION_SUGGESTION_LABELS } from "@/lib/quiz/constants";
 
 export type GeneratedQuestionSuggestionStatus =
   | {
@@ -20,10 +20,12 @@ type GeneratedQuestionSuggestionsProps = {
   addAllPending: boolean;
 };
 
-const QUESTION_TIERS = [
-  { label: "Easy", description: "Basic questions focused on the missed or nearby concept." },
-  { label: "Medium", description: "Application questions that build on the easy tier." },
-  { label: "Hard", description: "Synthesis questions that build on the earlier tiers." },
+const QUESTION_TYPES = [
+  { label: "Explain", description: "Clarify the concept in plain language." },
+  { label: "Analyze", description: "Break down mechanism, structure, or cause and effect." },
+  { label: "Evaluate", description: "Judge tradeoffs, strengths, limits, or best-fit choices." },
+  { label: "Apply", description: "Use the concept in a realistic scenario." },
+  { label: "Teach", description: "Explain it simply enough to teach a beginner." },
 ] as const;
 
 export function GeneratedQuestionSuggestions({
@@ -41,13 +43,10 @@ export function GeneratedQuestionSuggestions({
   }
 
   const isBusy = addAllPending || pendingQuestion !== null;
-  const tierSections = QUESTION_TIERS.map((tier, index) => ({
-    ...tier,
-    questions: questions.slice(
-      index * GENERATED_QUESTION_SUGGESTION_TIER_SIZE,
-      (index + 1) * GENERATED_QUESTION_SUGGESTION_TIER_SIZE,
-    ),
-  })).filter((tier) => tier.questions.length > 0);
+  const typeSections = QUESTION_TYPES.map((type, index) => ({
+    ...type,
+    question: questions[index] ?? null,
+  })).filter((type) => type.question !== null && GENERATED_QUESTION_SUGGESTION_LABELS.includes(type.label));
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -56,8 +55,8 @@ export function GeneratedQuestionSuggestions({
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Suggested Questions</p>
             <p className="mt-2 text-sm text-slate-700">
-              Add any of these to the same node as future review questions. The tiers move from foundational to
-              advanced.
+              Add any of these to the same node as future review questions. Each suggestion uses a different study
+              lens: explanation, analysis, evaluation, application, and teaching.
             </p>
           </div>
           <button
@@ -71,15 +70,18 @@ export function GeneratedQuestionSuggestions({
         </div>
 
         <div className="flex flex-col gap-4">
-          {tierSections.map((tier) => (
-            <section key={tier.label} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+          {typeSections.map((type) => (
+            <section key={type.label} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <div className="mb-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{tier.label}</p>
-                <p className="mt-1 text-sm text-slate-600">{tier.description}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{type.label}</p>
+                <p className="mt-1 text-sm text-slate-600">{type.description}</p>
               </div>
 
               <div className="flex flex-col gap-3">
-                {tier.questions.map((question) => {
+                {[type.question].map((question) => {
+                  if (!question) {
+                    return null;
+                  }
                   const status = questionStatuses[question];
                   const isPending = pendingQuestion === question;
                   const isAdding = isPending && pendingQuestionAction === "add";

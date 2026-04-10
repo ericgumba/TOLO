@@ -37,12 +37,6 @@ export const questionCreateSchema = z.object({
   returnTo: z.string().startsWith("/").optional(),
 });
 
-export const questionGenerateSchema = z.object({
-  nodeId: z.cuid(),
-  returnTo: z.string().startsWith("/").optional(),
-  notes: z.string().trim().max(2000).optional(),
-});
-
 export const generatedNodeQuestionAddSchema = z.object({
   nodeId: z.cuid(),
   body: z.string().trim().min(1).max(1000),

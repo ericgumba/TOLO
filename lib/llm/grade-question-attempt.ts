@@ -8,7 +8,7 @@ import {
 } from "@/lib/llm/prompt-formatting";
 import { type LlmCallResult } from "@/lib/llm/result";
 import { sanitizeGeneratedQuestionSuggestions } from "@/lib/quiz/generated-questions";
-import { GENERATED_QUESTION_SUGGESTION_COUNT, GENERATED_QUESTION_SUGGESTION_TIER_SIZE } from "@/lib/quiz/constants";
+import { GENERATED_QUESTION_SUGGESTION_COUNT, GENERATED_QUESTION_SUGGESTION_LABELS } from "@/lib/quiz/constants";
 
 type GradeResult = {
   score: number;
@@ -25,12 +25,8 @@ function clampScore(value: unknown): number {
   return Math.max(1, Math.min(100, Math.round(numeric)));
 }
 
-function getSuggestionTierOrderInstruction(): string {
-  if (GENERATED_QUESTION_SUGGESTION_TIER_SIZE === 1) {
-    return "easy, medium, and hard";
-  }
-
-  return `${GENERATED_QUESTION_SUGGESTION_TIER_SIZE} easy, ${GENERATED_QUESTION_SUGGESTION_TIER_SIZE} medium, and ${GENERATED_QUESTION_SUGGESTION_TIER_SIZE} hard`;
+function getSuggestionCategoryOrderInstruction(): string {
+  return GENERATED_QUESTION_SUGGESTION_LABELS.join(", ");
 }
 
 export async function gradeQuestionAttempt(
@@ -44,7 +40,7 @@ export async function gradeQuestionAttempt(
     const contextText = formatContextPath(context);
     const historyText = formatQuizHistory(quizHistory);
     const existingQuestionsText = formatIndexedStringList(existingQuestions);
-    const suggestionTierOrderInstruction = getSuggestionTierOrderInstruction();
+    const suggestionCategoryOrderInstruction = getSuggestionCategoryOrderInstruction();
 
     const response = await requestOpenAiJsonObject<{
       score?: unknown;
@@ -77,25 +73,16 @@ export async function gradeQuestionAttempt(
             "- feedback must briefly state what is correct and what is missing or unclear (1–3 sentences).\n" +
             "- correction must give a clean, concise, correct answer to the original question.\n" +
             "- If the answer is correct, diagnosis should point to the next related concept to reinforce.\n\n" +
-          `Always generate exactly ${GENERATED_QUESTION_SUGGESTION_COUNT} distinct future study questions for the same topic.\n` +
-          "Question anchoring rules:\n" +
-          "- Anchor all questions to the diagnosis or an immediately related prerequisite concept.\n" +
-          "- Do not repeat wording, meaning, answer target, or cognitive task of any existing question.\n" +
-          "- A question counts as a duplicate even if reworded, if it tests the same concept in nearly the same way.\n\n" +
-          `Order generatedQuestions as ${suggestionTierOrderInstruction}.\n` +
-          "The questions must form a pedagogically coherent progression around ONE core concept.\n\n" +
-          "Standalone wording rules:\n" +
-          "- Do not use transitional wording like 'Building on that', 'Given that', or 'Now that'.\n" +
-          "- The medium question should deepen the same concept while remaining fully self-contained.\n" +
-          "- The hard question should deepen the same concept further while remaining fully self-contained.\n\n" +
-          "Difficulty progression rules:\n" +
-          "- Easy: Ask a definition question: e.g \"what is x?\"\n" +
-          "- Medium: build directly on easy (comparison, or simple application or a why question)\n" +
-          "- Hard: build directly on medium (synthesis, tradeoffs, or scenario-based reasoning)\n\n" +
-          "Structured progression requirements:\n" +
-          "- Each tier should feel like the natural next step from the previous one.\n" +
-          "- Do not produce unrelated questions that only differ in difficulty.\n" +
-          "- Each question must still stand alone as a future quiz question.\n\n" +
+          `Always generate exactly ${GENERATED_QUESTION_SUGGESTION_COUNT} distinct future study questions for the same topic.\n` + 
+          `Order generatedQuestions as ${suggestionCategoryOrderInstruction}.\n` +
+          "Do not use transitional wording like 'Building on that' or 'As a follow-up'.\n" +
+          "Question type rules:\n" +
+          "- Explain: Ask a why or how question that tests understanding of the concept’s purpose or mechanism..\n" +
+          "- Analyze: Ask the user to compare, contrast, or reason through a \"what if\" scenario.\n" +
+          "- Evaluate: ask the learner to judge tradeoffs, limits, strengths, weaknesses, or when one approach is better than another.\n" +
+          "- Apply: ask the learner to use the concept in a concrete scenario or realistic example.\n" +
+          "- Teach: Ask the user to explain the concept as if teaching a complete beginner. The explanation must be simple, intuitive, and include an analogy or real-world example.\n" +
+          "- Every generated question must remain fully self-contained.\n\n" +
           "Question quality rules:\n" +
           "- Keep questions concise and specific.\n" +
           "- Prefer short wording over multi-clause phrasing.\n" +
@@ -105,13 +92,10 @@ export async function gradeQuestionAttempt(
           role: "user",
           content:
             `Context path: ${contextText}\n\n` +
-            `Prior quiz Q/A:\n${historyText}\n\n` +
-            `Already asked questions:\n${existingQuestionsText}\n\n` +
+            `Quiz history: ${historyText}\n\n` +
+            `Existing questions at this node:\n${existingQuestionsText}\n\n` +
             `Question: ${question}\n\n` +
             `Student answer: ${answer}\n\n` +
-            `Generate ${GENERATED_QUESTION_SUGGESTION_COUNT} candidate future study questions that fit this same topic and do not repeat wording or meaning of existing questions.\n` +
-            `Return them in order: ${suggestionTierOrderInstruction}.\n` +
-            "Increase conceptual depth across easy, medium, and hard while keeping each question fully standalone.\n\n" +
             "Return JSON only.",
         },
       ],

@@ -2,3 +2,32 @@ Add ads.
 Add Cloudflare.
 Add stripe.
 Add video/images in the landing page.
+
+
+
+Rename every user-facing subtopic label to concept.
+Rename the internal node level from SUBTOPIC to CONCEPT.
+Keep the hierarchy as Subject -> Topic -> Concept.
+Make Concept the only official leaf learning unit.
+Prevent concepts from having child nodes.
+Keep subjects and topics as organizational containers, not primary mastery units.
+Make concept pages the primary place where learning happens.
+Keep topic pages focused on overview, navigation, and concept lists.
+Update the table of contents to show concepts under topics.
+Update all create/edit forms to create concepts instead of subtopics.
+Update all headings, empty states, helper text, and button copy to say concept.
+Update any route/query semantics that currently say subtopic.
+Decide whether old URLs should keep working through redirects or compatibility handling.
+Migrate existing SUBTOPIC rows in the database to CONCEPT.
+Update schema enums, Prisma types, and application types to use CONCEPT.
+Enforce in validation and actions that only topics can create concepts.
+Enforce in validation and actions that concepts cannot create children.
+Treat concept nodes as the default unit for learning, review, and mastery.
+Allow existing topic-level questions to keep working temporarily as legacy content.
+Decide later whether to block all new topic-level questions or migrate them to concepts.
+Update review and mastery language so it conceptually points to concepts, not subtopics.
+Update tests, fixtures, and mocks to use concept terminology everywhere.
+Keep follow-up quiz prompts as session artifacts, not permanent concept children.
+Preserve the current tree UI while changing the meaning of the leaf node to concept.
+Implement the rename first, then tighten concept-only learning behavior immediately after.
+

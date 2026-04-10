@@ -18,22 +18,22 @@ const steps: Step[] = [
   {
     step: "01",
     title: "Create your study tree",
-    body: "Start with one subject, then split it into topics and subtopics so your material is organized by concept instead of one long page of notes.",
+    body: "Start with a subject, then split it into topics and subtopics so your material is organized by concept instead of one long page of notes.",
   },
   {
     step: "02",
     title: "Add questions where they belong",
-    body: "Attach questions directly to the subject, topic, or subtopic you want to study. Each question stays connected to the section it is testing.",
+    body: "Attach questions directly to the subject, topic, or subtopic you want to study.",
   },
   {
     step: "03",
     title: "Answer in free-form",
-    body: "Open a question and explain the answer in your own words. TOLO is designed for active recall, not multiple choice guessing.",
+    body: "Open a question and explain the answer in your own words. TOLO is designed for active recall.",
   },
   {
     step: "04",
     title: "Review with AI and spaced repetition",
-    body: "The app grades your answer, gives hints and feedback, suggests future questions, and schedules review for main questions when they are due again.",
+    body: "The app grades your answer, gives hints and feedback, suggests questions on related concepts, and schedules review using spaced repetition.",
   },
 ];
 
@@ -44,11 +44,11 @@ const features: Feature[] = [
   },
   {
     title: "Free-form quiz practice",
-    body: "You learn by explaining ideas clearly, which reveals gaps that flashcards usually miss.",
+    body: "You learn by explaining ideas clearly, the LLM will reveal gaps to study.",
   },
   {
     title: "AI tutoring loop",
-    body: "Hints, grading, and generated question suggestions help you go deeper when your answer is incomplete.",
+    body: "Hints, grading, and generated question suggestions help with mastery of the subject.",
   },
   {
     title: "Review queue",
@@ -59,7 +59,7 @@ const features: Feature[] = [
 const workflowItems = [
   "Create a subject like Operating Systems.",
   "Add topics like Virtualization and Processes, then add subtopics where needed.",
-  "Create questions for the exact node you want to practice.",
+  "Create questions for the exact topic you want to study.",
   "Open a question, answer it in free-form, and read the AI feedback.",
   "Use hints if you are stuck, then revisit due questions from the dashboard review queue.",
 ];

@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { createNodeAction } from "@/app/actions/nodes";
 import { CreateQuestionSection } from "@/app/components/create-question-section";
 import { GroupedQuestionList } from "@/app/components/grouped-question-list";
-import { QuestionGeneratorPanel } from "@/app/components/question-generator-panel";
 import { ReviewLaunchCard } from "@/app/components/review-launch-card";
 import { SubjectTocSidebar } from "@/app/components/subject-toc-sidebar";
 import { auth } from "@/auth";
@@ -43,9 +42,6 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
     : null;
   const activeNodeId = selectedSubtopic?.id ?? topic.id;
   const activeNodeLabel = selectedSubtopic ? `subtopic "${selectedSubtopic.title}"` : `topic "${topic.title}"`;
-  const generatorTargetLabel = selectedSubtopic
-    ? `${subject.title} : ${topic.title} : ${selectedSubtopic.title}`
-    : `${subject.title} : ${topic.title}`;
   const routePath = `/subject/${subjectId}/topic/${topicId}`;
   const returnToPath = selectedSubtopic ? `${routePath}?subtopic=${selectedSubtopic.id}` : routePath;
   const nodeIds = selectedSubtopic
@@ -156,7 +152,11 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
       </header>
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-        <SubjectTocSidebar subject={subject} activeTopicId={topic.id} activeSubtopicId={activeSubtopicId} />
+        <SubjectTocSidebar
+          subject={subject}
+          activeTopicId={topic.id}
+          activeSubtopicId={activeSubtopicId}
+        />
 
         <div className="flex min-w-0 flex-1 flex-col gap-6">
           {selectedSubtopic ? (
@@ -214,8 +214,6 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
             returnTo={returnToPath}
             placeholder={selectedSubtopic ? "Write a question for this subtopic" : "Write a question for this topic"}
           />
-
-          <QuestionGeneratorPanel nodeId={activeNodeId} targetLabel={generatorTargetLabel} returnTo={returnToPath} />
 
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Questions at this {selectedSubtopic ? "subtopic" : "topic"}</h2>

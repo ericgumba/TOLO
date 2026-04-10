@@ -4,6 +4,8 @@ type GeneratedQuestionFields = {
   generated1?: unknown;
   generated2?: unknown;
   generated3?: unknown;
+  generated4?: unknown;
+  generated5?: unknown;
 };
 
 function collapseWhitespace(value: string): string {
@@ -32,7 +34,7 @@ export function getGeneratedQuestionSuggestionsFromFields(input: GeneratedQuesti
   const suggestions: string[] = [];
   const seen = new Set<string>();
 
-  for (const value of [input.generated1, input.generated2, input.generated3]) {
+  for (const value of [input.generated1, input.generated2, input.generated3, input.generated4, input.generated5]) {
     if (typeof value !== "string") {
       continue;
     }
@@ -54,9 +56,11 @@ export function buildFallbackGeneratedQuestionSuggestions(question: string): str
   const lead = buildQuestionLead(question);
 
   return [
-    `What is the core idea behind "${lead}"?`,
-    `How does "${lead}" work in a simple example?`,
-    `What tradeoff or failure case would test real understanding of "${lead}"?`,
+    `How would you explain the core idea behind "${lead}" in plain language?`,
+    `What mechanism or structure would you analyze to understand "${lead}" more deeply?`,
+    `What tradeoff, limitation, or judgment would you evaluate when reasoning about "${lead}"?`,
+    `How would you apply "${lead}" in a concrete scenario?`,
+    `How would you teach "${lead}" to someone seeing it for the first time?`,
   ].map(trimGeneratedQuestion);
 }
 

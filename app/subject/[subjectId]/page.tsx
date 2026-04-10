@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { createNodeAction } from "@/app/actions/nodes";
 import { CreateQuestionSection } from "@/app/components/create-question-section";
 import { GroupedQuestionList } from "@/app/components/grouped-question-list";
-import { QuestionGeneratorPanel } from "@/app/components/question-generator-panel";
 import { ReviewLaunchCard } from "@/app/components/review-launch-card";
 import { SubjectTocSidebar } from "@/app/components/subject-toc-sidebar";
 import { auth } from "@/auth";
@@ -183,8 +182,6 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
             returnTo={returnToPath}
             placeholder="Write a question for this subject"
           />
-
-          <QuestionGeneratorPanel nodeId={subject.id} targetLabel={subject.title} returnTo={returnToPath} />
 
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Questions at this subject</h2>

@@ -32,6 +32,14 @@ enum LlmUsageType {
   QUESTION_GENERATION
 }
 
+enum GeneratedQuestionCategory {
+  EXPLAIN
+  ANALYZE
+  EVALUATE
+  APPLY
+  TEACH
+}
+
 model User {
   id                 String             @id @default(cuid())
   email              String             @unique
@@ -78,9 +86,24 @@ model Question {
   user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   node         Node              @relation(fields: [nodeId], references: [id], onDelete: Cascade)
   reviewStates ReviewState[]
+  generatedQuestions GeneratedQuestion[]
 
   @@index([userId, nodeId])
   @@index([nodeId])
+}
+
+model GeneratedQuestion {
+  id         String                    @id @default(cuid())
+  questionId String
+  category   GeneratedQuestionCategory
+  body       String
+  createdAt  DateTime                  @default(now())
+  updatedAt  DateTime                  @updatedAt
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, category])
+  @@index([questionId])
 }
 
 model ReviewState {

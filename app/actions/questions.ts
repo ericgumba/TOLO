@@ -114,6 +114,22 @@ export async function addGeneratedQuestionToNodeAction(input: {
   body: string;
   returnTo?: string;
 }): Promise<AddGeneratedQuestionResult> {
+  return addQuestionToNodeAction(input);
+}
+
+export async function addSuggestedQuestionToNodeAction(input: {
+  nodeId: string;
+  body: string;
+  returnTo?: string;
+}): Promise<AddGeneratedQuestionResult> {
+  return addQuestionToNodeAction(input);
+}
+
+async function addQuestionToNodeAction(input: {
+  nodeId: string;
+  body: string;
+  returnTo?: string;
+}): Promise<AddGeneratedQuestionResult> {
   const userId = await requireAuthUserId();
 
   const parsed = generatedNodeQuestionAddSchema.safeParse(input);

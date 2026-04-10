@@ -22,8 +22,10 @@ describe("gradeQuestionAttempt", () => {
               message: {
                 content: JSON.stringify({
                   score: 88,
+                  diagnosis: "chlorophyll",
                   feedback: "Solid answer.",
                   correction: "Tighten the mechanism.",
+                  suggestedQuestion: "What is chlorophyll?",
                   generatedQuestions: [
                     "  Why is photosynthesis essential to ecosystems?  ",
                     "Why is photosynthesis essential to ecosystems?",
@@ -52,6 +54,7 @@ describe("gradeQuestionAttempt", () => {
     }
 
     expect(result.value.score).toBe(88);
+    expect(result.value.suggestedQuestion).toBe("What is chlorophyll?");
     expect(result.value.generatedQuestions).toHaveLength(GENERATED_QUESTION_SUGGESTION_COUNT);
     expect(result.value.generatedQuestions[0]).toBe("Why is photosynthesis essential to ecosystems?");
     expect(result.value.generatedQuestions[1]).toBe(`How does photosynthesis affect the carbon cycle? ${"x".repeat(400)}`);
@@ -67,9 +70,112 @@ describe("gradeQuestionAttempt", () => {
     };
     const systemPrompt = requestBody.messages[0]?.content ?? "";
     expect(systemPrompt).toContain("diagnosis (string: the single most important missing, misunderstood, or vague concept)");
+    expect(systemPrompt).toContain("- suggestedQuestion (string)");
     expect(systemPrompt).toContain("Order generatedQuestions as Explain, Analyze, Evaluate, Apply, Teach");
     expect(systemPrompt).toContain("Do not use transitional wording like 'Building on that'");
     expect(systemPrompt).toContain("- Explain: Ask a why or how question that tests understanding of the concept’s purpose or mechanism.");
     expect(systemPrompt).toContain("- Teach: Ask the user to explain the concept as if teaching a complete beginner.");
+    expect(systemPrompt).toContain('suggestedQuestion must use one of these forms: "What is X?", "What is a X?", "What is an X?", or "What are X?".');
+  });
+
+  it("can skip generated question creation instructions when questions already exist", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  score: 77,
+                  diagnosis: "chloroplast",
+                  feedback: "Mostly right.",
+                  correction: "A tighter correction.",
+                  suggestedQuestion: "What is a chloroplast?",
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    ) as typeof fetch;
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await gradeQuestionAttempt(
+      "What is photosynthesis?",
+      "It converts light into chemical energy.",
+      [],
+      [],
+      [],
+      {
+        includeGeneratedQuestions: false,
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected success result.");
+    }
+
+    expect(result.value.suggestedQuestion).toBe("What is a chloroplast?");
+    expect(result.value.generatedQuestions).toEqual([]);
+
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const systemPrompt = requestBody.messages[0]?.content ?? "";
+    expect(systemPrompt).toContain("- suggestedQuestion (string)");
+    expect(systemPrompt).not.toContain("- generatedQuestions");
+    expect(systemPrompt).not.toContain("Order generatedQuestions as");
+  });
+
+  it("replaces duplicate suggested questions with a definitional fallback from diagnosis", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  score: 81,
+                  diagnosis: "thylakoid membrane",
+                  feedback: "Good enough.",
+                  correction: "Cleaner correction.",
+                  suggestedQuestion: "What is chlorophyll?",
+                  generatedQuestions: [
+                    "Explain photosynthesis in your own words.",
+                    "How does photosynthesis affect energy flow?",
+                    "When is photosynthesis limited by light?",
+                    "How would you apply photosynthesis to crop growth?",
+                    "How would you teach photosynthesis simply?",
+                  ],
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    ) as typeof fetch;
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await gradeQuestionAttempt(
+      "What is photosynthesis?",
+      "It converts light into chemical energy.",
+      [],
+      [],
+      ["What is chlorophyll?"],
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected success result.");
+    }
+
+    expect(result.value.suggestedQuestion).toBe("What is thylakoid membrane?");
   });
 });

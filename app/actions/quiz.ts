@@ -1,5 +1,6 @@
 "use server";
 
+import { GeneratedQuestionCategory } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -12,6 +13,7 @@ import { type LlmCallFailureReason } from "@/lib/llm/result";
 import { assertCanUseLlm, LlmDailyLimitExceededError, logLlmUsage } from "@/lib/llm/usage-limit";
 import { prisma } from "@/lib/prisma";
 import { normalizeQuestionText } from "@/lib/quiz/generated-questions";
+import { GENERATED_QUESTION_SUGGESTION_COUNT } from "@/lib/quiz/constants";
 import { type QuizInteractionState } from "@/lib/quiz/session-state";
 import { upsertReviewStateFromAttempt } from "@/lib/review/service";
 
@@ -35,7 +37,31 @@ type LoadedQuizState = {
   };
   context: QuestionContextNode[];
   existingQuestionBodies: string[];
+  generatedQuestions: string[];
 };
+
+const GENERATED_QUESTION_CATEGORY_ORDER: GeneratedQuestionCategory[] = [
+  "EXPLAIN",
+  "ANALYZE",
+  "EVALUATE",
+  "APPLY",
+  "TEACH",
+];
+
+function sortGeneratedQuestionsByCategory(
+  generatedQuestions: Array<{
+    category: GeneratedQuestionCategory;
+    body: string;
+  }>,
+): string[] {
+  return [...generatedQuestions]
+    .sort(
+      (left, right) =>
+        GENERATED_QUESTION_CATEGORY_ORDER.indexOf(left.category) -
+        GENERATED_QUESTION_CATEGORY_ORDER.indexOf(right.category),
+    )
+    .map((item) => item.body);
+}
 
 function normalizeFrom(value?: string): string {
   return value?.startsWith("/") ? value : "/dashboard";
@@ -116,6 +142,12 @@ async function loadQuizState(userId: string, questionId: string): Promise<Loaded
           level: true,
         },
       },
+      generatedQuestions: {
+        select: {
+          category: true,
+          body: true,
+        },
+      },
     },
   });
 
@@ -176,6 +208,7 @@ async function loadQuizState(userId: string, questionId: string): Promise<Loaded
     question,
     context,
     existingQuestionBodies: existingQuestions.map((item) => item.body),
+    generatedQuestions: sortGeneratedQuestionsByCategory(question.generatedQuestions),
   };
 }
 
@@ -274,6 +307,7 @@ export async function runQuizInteractionAction(
       draftAnswer,
       submittedAnswer: null,
       feedback: null,
+      suggestedQuestion: null,
       activeHints: [...existingHints, finalHint],
       revealedAnswer: previousState.revealedAnswer,
       generatedQuestions: [],
@@ -334,6 +368,7 @@ export async function runQuizInteractionAction(
       draftAnswer,
       submittedAnswer: null,
       feedback: null,
+      suggestedQuestion: null,
       activeHints: existingHints,
       revealedAnswer,
       generatedQuestions: [],
@@ -363,6 +398,9 @@ export async function runQuizInteractionAction(
     loaded.context,
     [],
     loaded.existingQuestionBodies,
+    {
+      includeGeneratedQuestions: loaded.generatedQuestions.length === 0,
+    },
   );
 
   if (!scoringResult.ok) {
@@ -376,6 +414,7 @@ export async function runQuizInteractionAction(
   }
 
   const answeredAt = new Date();
+  let generatedQuestions = loaded.generatedQuestions;
 
   try {
     await upsertReviewStateFromAttempt({
@@ -384,6 +423,19 @@ export async function runQuizInteractionAction(
       llmScore: scoringResult.value.score,
       reviewedAt: answeredAt,
     });
+
+    if (generatedQuestions.length === 0 && scoringResult.value.generatedQuestions.length > 0) {
+      generatedQuestions = scoringResult.value.generatedQuestions.slice(0, GENERATED_QUESTION_SUGGESTION_COUNT);
+
+      await prisma.generatedQuestion.createMany({
+        data: generatedQuestions.map((body, index) => ({
+          questionId: loaded.question.id,
+          category: GENERATED_QUESTION_CATEGORY_ORDER[index] ?? "TEACH",
+          body,
+        })),
+        skipDuplicates: true,
+      });
+    }
   } catch {
     return buildErrorState(previousState, "attempt_save_failed", trimmedAnswer);
   }
@@ -400,9 +452,10 @@ export async function runQuizInteractionAction(
       llmCorrection: scoringResult.value.correction,
       answeredAtIso: answeredAt.toISOString(),
     },
+    suggestedQuestion: scoringResult.value.suggestedQuestion,
     activeHints: previousState.activeHints,
     revealedAnswer: previousState.revealedAnswer,
-    generatedQuestions: scoringResult.value.generatedQuestions,
+    generatedQuestions,
     errorCode: null,
   };
 }

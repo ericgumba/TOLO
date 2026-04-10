@@ -6,11 +6,13 @@ const {
   feedbackCardMock,
   generatedQuestionSuggestionsMock,
   questionCardMock,
+  suggestedQuestionCardMock,
 } = vi.hoisted(() => ({
   answerCardMock: vi.fn(() => null),
   feedbackCardMock: vi.fn(() => null),
   generatedQuestionSuggestionsMock: vi.fn(() => null),
   questionCardMock: vi.fn(() => null),
+  suggestedQuestionCardMock: vi.fn(() => null),
 }));
 
 vi.mock("@/app/components/quiz/answer-card", () => ({
@@ -27,6 +29,10 @@ vi.mock("@/app/components/quiz/generated-question-suggestions", () => ({
 
 vi.mock("@/app/components/quiz/question-card", () => ({
   QuestionCard: questionCardMock,
+}));
+
+vi.mock("@/app/components/quiz/suggested-question-card", () => ({
+  SuggestedQuestionCard: suggestedQuestionCardMock,
 }));
 
 import { QuizBody } from "@/app/components/quiz/quiz-body";
@@ -57,22 +63,17 @@ describe("QuizBody", () => {
     questionId: "c12345678901234567890124",
     questionBody: "Base question",
     from: "/subject/c12345678901234567890125",
-    mode: undefined as string | undefined,
     draftAnswer: "",
     activeHints: [] as string[],
     revealedAnswer: null as string | null,
     submission: null,
+    suggestedQuestion: null as string | null,
+    suggestedQuestionStatus: "idle" as const,
     generatedQuestions: [] as string[],
-    generatedQuestionStatuses: {},
     formAction: vi.fn(),
     onDraftAnswerChange: vi.fn(),
     onReset: vi.fn(),
-    onAddGeneratedQuestion: vi.fn(),
-    onRemoveGeneratedQuestion: vi.fn(),
-    onAddAllGeneratedQuestions: vi.fn(),
-    pendingGeneratedQuestion: null as string | null,
-    pendingGeneratedQuestionAction: null as "add" | "remove" | null,
-    addAllPending: false,
+    onAddSuggestedQuestion: vi.fn(),
   };
 
   it("shows the editable answer form before submission", () => {
@@ -85,12 +86,17 @@ describe("QuizBody", () => {
       tree,
       (value) => isValidElement(value) && value.type === generatedQuestionSuggestionsMock,
     );
+    const suggestedQuestionCards = collectElements(
+      tree,
+      (value) => isValidElement(value) && value.type === suggestedQuestionCardMock,
+    );
 
     expect(editableAnswerCards).toHaveLength(1);
     expect(suggestionSections).toHaveLength(0);
+    expect(suggestedQuestionCards).toHaveLength(0);
   });
 
-  it("shows generated question suggestions instead of another editable answer form after submission", () => {
+  it("shows generated and suggested questions after submission", () => {
     const tree = QuizBody({
       ...baseProps,
       submission: {
@@ -102,6 +108,7 @@ describe("QuizBody", () => {
           answeredAtIso: "2026-04-01T12:00:00.000Z",
         },
       },
+      suggestedQuestion: "What is a hypervisor?",
       generatedQuestions: ["Generated question one?", "Generated question two?", "Generated question three?"],
     });
 
@@ -113,6 +120,10 @@ describe("QuizBody", () => {
       tree,
       (value) => isValidElement(value) && value.type === generatedQuestionSuggestionsMock,
     );
+    const suggestedQuestionCards = collectElements(
+      tree,
+      (value) => isValidElement(value) && value.type === suggestedQuestionCardMock,
+    );
 
     expect(editableAnswerCards).toHaveLength(0);
     expect(suggestionSections).toHaveLength(1);
@@ -121,8 +132,11 @@ describe("QuizBody", () => {
       "Generated question two?",
       "Generated question three?",
     ]);
+    expect(suggestedQuestionCards).toHaveLength(1);
     expect(
-      suggestionSections[0] && isValidElement(suggestionSections[0]) ? suggestionSections[0].props.questionStatuses : undefined,
-    ).toEqual({});
+      suggestedQuestionCards[0] && isValidElement(suggestedQuestionCards[0])
+        ? suggestedQuestionCards[0].props.question
+        : undefined,
+    ).toBe("What is a hypervisor?");
   });
 });

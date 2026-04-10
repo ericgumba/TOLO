@@ -24,6 +24,7 @@ export type QuizInteractionState = {
   draftAnswer: string;
   submittedAnswer: string | null;
   feedback: QuizSubmissionFeedback | null;
+  suggestedQuestion: string | null;
   activeHints: string[];
   revealedAnswer: string | null;
   generatedQuestions: string[];
@@ -35,6 +36,7 @@ export const initialQuizInteractionState: QuizInteractionState = {
   draftAnswer: "",
   submittedAnswer: null,
   feedback: null,
+  suggestedQuestion: null,
   activeHints: [],
   revealedAnswer: null,
   generatedQuestions: [],

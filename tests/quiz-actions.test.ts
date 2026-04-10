@@ -22,6 +22,9 @@ const {
       findFirst: vi.fn(),
       findMany: vi.fn(),
     },
+    generatedQuestion: {
+      createMany: vi.fn(),
+    },
     node: {
       findFirst: vi.fn(),
     },
@@ -104,6 +107,7 @@ describe("runQuizInteractionAction", () => {
       id: questionId,
       body: "Base question",
       nodeId,
+      generatedQuestions: [],
       node: {
         parentId: null,
         id: nodeId,
@@ -113,12 +117,14 @@ describe("runQuizInteractionAction", () => {
     });
     prismaMock.node.findFirst.mockResolvedValue(null);
     prismaMock.question.findMany.mockResolvedValue([{ body: "Base question" }]);
+    prismaMock.generatedQuestion.createMany.mockResolvedValue({ count: 3 });
     gradeQuestionAttemptMock.mockResolvedValue({
       ok: true,
       value: {
         score: 82,
         feedback: "Good answer.",
         correction: "No correction needed.",
+        suggestedQuestion: "What is a hypervisor?",
         generatedQuestions: ["Generated question one?", "Generated question two?", "Generated question three?"],
       },
     });
@@ -156,16 +162,103 @@ describe("runQuizInteractionAction", () => {
         answeredAtIso: expect.any(String),
       }),
     );
+    expect(state.suggestedQuestion).toBe("What is a hypervisor?");
     expect(state.generatedQuestions).toEqual([
       "Generated question one?",
       "Generated question two?",
       "Generated question three?",
     ]);
+    expect(gradeQuestionAttemptMock).toHaveBeenCalledWith(
+      "Base question",
+      "First answer",
+      [
+        {
+          id: nodeId,
+          title: "Topic",
+          level: "TOPIC",
+        },
+      ],
+      [],
+      ["Base question"],
+      { includeGeneratedQuestions: true },
+    );
+    expect(prismaMock.generatedQuestion.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          questionId,
+          category: "EXPLAIN",
+          body: "Generated question one?",
+        },
+        {
+          questionId,
+          category: "ANALYZE",
+          body: "Generated question two?",
+        },
+        {
+          questionId,
+          category: "EVALUATE",
+          body: "Generated question three?",
+        },
+      ],
+      skipDuplicates: true,
+    });
     expect(upsertReviewStateFromAttemptMock).toHaveBeenCalledTimes(1);
     expect(logLlmUsageMock).toHaveBeenCalledWith(userId, "GRADE");
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard");
     expect(revalidatePathMock).toHaveBeenCalledWith(`/subject/${nodeId}`);
     expect(revalidatePathMock).toHaveBeenCalledWith(`/quiz/${questionId}`);
+  });
+
+  it("reuses already attached generated questions instead of creating new ones", async () => {
+    prismaMock.question.findFirst.mockResolvedValue({
+      id: questionId,
+      body: "Base question",
+      nodeId,
+      generatedQuestions: [
+        {
+          category: "EXPLAIN",
+          body: "Attached explain question?",
+        },
+        {
+          category: "ANALYZE",
+          body: "Attached analyze question?",
+        },
+      ],
+      node: {
+        parentId: null,
+        id: nodeId,
+        title: "Topic",
+        level: "TOPIC",
+      },
+    });
+
+    const state = await runQuizInteractionAction(
+      initialQuizInteractionState,
+      buildFormData({
+        questionId,
+        answer: "Another answer",
+        from: `/subject/${nodeId}`,
+        intent: "submit",
+      }),
+    );
+
+    expect(gradeQuestionAttemptMock).toHaveBeenCalledWith(
+      "Base question",
+      "Another answer",
+      [
+        {
+          id: nodeId,
+          title: "Topic",
+          level: "TOPIC",
+        },
+      ],
+      [],
+      ["Base question"],
+      { includeGeneratedQuestions: false },
+    );
+    expect(prismaMock.generatedQuestion.createMany).not.toHaveBeenCalled();
+    expect(state.suggestedQuestion).toBe("What is a hypervisor?");
+    expect(state.generatedQuestions).toEqual(["Attached explain question?", "Attached analyze question?"]);
   });
 
   it("returns updated hints without persisting an attempt", async () => {
@@ -185,6 +278,7 @@ describe("runQuizInteractionAction", () => {
 
     expect(state.status).toBe("idle");
     expect(state.feedback).toBeNull();
+    expect(state.suggestedQuestion).toBeNull();
     expect(state.generatedQuestions).toEqual([]);
     expect(state.activeHints).toEqual([
       "Start by defining the core unit.",
@@ -224,6 +318,7 @@ describe("runQuizInteractionAction", () => {
 
     expect(state.status).toBe("idle");
     expect(state.feedback).toBeNull();
+    expect(state.suggestedQuestion).toBeNull();
     expect(state.generatedQuestions).toEqual([]);
     expect(state.activeHints).toEqual(["Hint 1", "Hint 2", "Hint 3"]);
     expect(state.revealedAnswer).toBe(

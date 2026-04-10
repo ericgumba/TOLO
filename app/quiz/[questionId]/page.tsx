@@ -75,13 +75,7 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-6 py-10">
       <QuizHeader from={from} nodeTitle={question.node.title} nodeLevel={question.node.level} />
-      <QuizSession
-        questionId={question.id}
-        nodeId={question.node.id}
-        questionBody={question.body}
-        from={from}
-        mode={mode}
-      />
+      <QuizSession questionId={question.id} nodeId={question.node.id} questionBody={question.body} from={from} mode={mode} />
     </main>
   );
 }

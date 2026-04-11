@@ -19,15 +19,20 @@ export type QuizSubmissionFeedback = {
   answeredAtIso: string;
 };
 
+export type QuizGeneratedQuestionLink = {
+  id: string;
+  body: string;
+};
+
 export type QuizInteractionState = {
   status: "idle" | "submitted" | "error";
   draftAnswer: string;
   submittedAnswer: string | null;
   feedback: QuizSubmissionFeedback | null;
-  suggestedQuestion: string | null;
+  suggestedConcept: string | null;
   activeHints: string[];
   revealedAnswer: string | null;
-  generatedQuestions: string[];
+  generatedQuestions: QuizGeneratedQuestionLink[];
   errorCode: QuizInteractionErrorCode | null;
 };
 
@@ -36,7 +41,7 @@ export const initialQuizInteractionState: QuizInteractionState = {
   draftAnswer: "",
   submittedAnswer: null,
   feedback: null,
-  suggestedQuestion: null,
+  suggestedConcept: null,
   activeHints: [],
   revealedAnswer: null,
   generatedQuestions: [],

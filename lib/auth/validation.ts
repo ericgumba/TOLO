@@ -31,17 +31,20 @@ export const nodeTocDeleteSchema = nodeDeleteSchema.extend({
   confirmDelete: z.literal("DELETE"),
 });
 
-export const questionCreateSchema = z.object({
+export const conceptCreateSchema = z.object({
   nodeId: z.cuid(),
-  body: z.string().trim().min(1).max(1000),
+  title: z.string().trim().min(1).max(160),
   returnTo: z.string().startsWith("/").optional(),
 });
 
-export const generatedNodeQuestionAddSchema = z.object({
+export const generatedNodeConceptAddSchema = z.object({
   nodeId: z.cuid(),
-  body: z.string().trim().min(1).max(1000),
+  title: z.string().trim().min(1).max(160),
   returnTo: z.string().startsWith("/").optional(),
 });
+
+export const questionCreateSchema = conceptCreateSchema;
+export const generatedNodeQuestionAddSchema = generatedNodeConceptAddSchema;
 
 export const questionSettingsSchema = z.object({
   questionId: z.cuid(),
@@ -54,6 +57,7 @@ export const questionDeleteSchema = questionSettingsSchema.extend({
 
 export const quizInteractionSchema = z.object({
   questionId: z.cuid(),
+  questionKind: z.enum(["main", "generated"]).optional(),
   intent: z.enum(["hint", "reveal", "submit"]),
   answer: z.string().max(4000).optional(),
   from: z.string().startsWith("/").optional(),

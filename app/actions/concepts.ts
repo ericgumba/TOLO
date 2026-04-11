@@ -5,18 +5,18 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import {
-  generatedNodeQuestionAddSchema,
-  questionCreateSchema,
+  conceptCreateSchema,
+  generatedNodeConceptAddSchema,
   questionDeleteSchema,
   questionSettingsSchema,
 } from "@/lib/auth/validation";
 import { prisma } from "@/lib/prisma";
 import { normalizeQuestionText } from "@/lib/quiz/generated-questions";
 
-type AddGeneratedQuestionResult =
+type AddGeneratedConceptResult =
   | {
       status: "success";
-      questionId: string;
+      conceptId: string;
     }
   | {
       status: "duplicate";
@@ -26,7 +26,7 @@ type AddGeneratedQuestionResult =
       error: string;
     };
 
-type RemoveGeneratedQuestionResult =
+type RemoveGeneratedConceptResult =
   | {
       status: "success";
     }
@@ -52,12 +52,12 @@ function normalizeReturnTo(returnTo?: string): string {
   return returnTo?.startsWith("/") ? returnTo : "/dashboard";
 }
 
-async function createQuestionForUser(userId: string, nodeId: string, body: string) {
-  return prisma.question.create({
+async function createConceptForUser(userId: string, nodeId: string, title: string) {
+  return prisma.concept.create({
     data: {
       userId,
       nodeId,
-      body,
+      title,
       reviewStates: {
         create: {
           userId,
@@ -68,20 +68,23 @@ async function createQuestionForUser(userId: string, nodeId: string, body: strin
         },
       },
     },
+    select: {
+      id: true,
+    },
   });
 }
 
-export async function createQuestionAction(formData: FormData) {
+export async function createConceptAction(formData: FormData) {
   const userId = await requireAuthUserId();
 
-  const parsed = questionCreateSchema.safeParse({
+  const parsed = conceptCreateSchema.safeParse({
     nodeId: formData.get("nodeId"),
-    body: formData.get("body"),
+    title: formData.get("title"),
     returnTo: formData.get("returnTo") || undefined,
   });
 
   if (!parsed.success) {
-    redirect("/dashboard?error=Invalid%20question%20input");
+    redirect("/dashboard?error=Invalid%20concept%20input");
   }
 
   const node = await prisma.node.findFirst({
@@ -98,7 +101,7 @@ export async function createQuestionAction(formData: FormData) {
     redirect("/dashboard?error=Node%20not%20found");
   }
 
-  await createQuestionForUser(userId, parsed.data.nodeId, parsed.data.body);
+  await createConceptForUser(userId, parsed.data.nodeId, parsed.data.title);
 
   revalidatePath("/dashboard");
   if (parsed.data.returnTo) {
@@ -109,35 +112,35 @@ export async function createQuestionAction(formData: FormData) {
   redirect("/dashboard");
 }
 
-export async function addGeneratedQuestionToNodeAction(input: {
+export async function addGeneratedConceptToNodeAction(input: {
   nodeId: string;
-  body: string;
+  title: string;
   returnTo?: string;
-}): Promise<AddGeneratedQuestionResult> {
-  return addQuestionToNodeAction(input);
+}): Promise<AddGeneratedConceptResult> {
+  return addConceptToNodeAction(input);
 }
 
-export async function addSuggestedQuestionToNodeAction(input: {
+export async function addSuggestedConceptToNodeAction(input: {
   nodeId: string;
-  body: string;
+  title: string;
   returnTo?: string;
-}): Promise<AddGeneratedQuestionResult> {
-  return addQuestionToNodeAction(input);
+}): Promise<AddGeneratedConceptResult> {
+  return addConceptToNodeAction(input);
 }
 
-async function addQuestionToNodeAction(input: {
+async function addConceptToNodeAction(input: {
   nodeId: string;
-  body: string;
+  title: string;
   returnTo?: string;
-}): Promise<AddGeneratedQuestionResult> {
+}): Promise<AddGeneratedConceptResult> {
   const userId = await requireAuthUserId();
 
-  const parsed = generatedNodeQuestionAddSchema.safeParse(input);
+  const parsed = generatedNodeConceptAddSchema.safeParse(input);
 
   if (!parsed.success) {
     return {
       status: "error",
-      error: "Invalid generated question input.",
+      error: "Invalid concept input.",
     };
   }
 
@@ -159,8 +162,8 @@ async function addQuestionToNodeAction(input: {
     };
   }
 
-  const normalizedCandidate = normalizeQuestionText(parsed.data.body);
-  const existingQuestions = await prisma.question.findMany({
+  const normalizedCandidate = normalizeQuestionText(parsed.data.title);
+  const existingConcepts = await prisma.concept.findMany({
     where: {
       userId,
       nodeId: parsed.data.nodeId,
@@ -169,12 +172,12 @@ async function addQuestionToNodeAction(input: {
       createdAt: "asc",
     },
     select: {
-      body: true,
+      title: true,
     },
   });
 
-  const hasDuplicate = existingQuestions.some(
-    (question) => normalizeQuestionText(question.body) === normalizedCandidate,
+  const hasDuplicate = existingConcepts.some(
+    (concept) => normalizeQuestionText(concept.title) === normalizedCandidate,
   );
 
   if (hasDuplicate) {
@@ -184,35 +187,38 @@ async function addQuestionToNodeAction(input: {
   }
 
   try {
-    const createdQuestion = await createQuestionForUser(userId, parsed.data.nodeId, parsed.data.body);
+    const createdConcept = await createConceptForUser(userId, parsed.data.nodeId, parsed.data.title);
 
     revalidatePath("/dashboard");
     revalidatePath(returnTo);
 
     return {
       status: "success",
-      questionId: createdQuestion.id,
+      conceptId: createdConcept.id,
     };
   } catch {
     return {
       status: "error",
-      error: "Could not add the generated question right now.",
+      error: "Could not add this concept right now.",
     };
   }
 }
 
-export async function removeGeneratedQuestionFromNodeAction(input: {
-  questionId: string;
+export async function removeGeneratedConceptFromNodeAction(input: {
+  conceptId: string;
   returnTo?: string;
-}): Promise<RemoveGeneratedQuestionResult> {
+}): Promise<RemoveGeneratedConceptResult> {
   const userId = await requireAuthUserId();
 
-  const parsed = questionSettingsSchema.safeParse(input);
+  const parsed = questionSettingsSchema.safeParse({
+    questionId: input.conceptId,
+    returnTo: input.returnTo,
+  });
 
   if (!parsed.success) {
     return {
       status: "error",
-      error: "Invalid generated question removal input.",
+      error: "Invalid concept removal input.",
     };
   }
 
@@ -220,7 +226,7 @@ export async function removeGeneratedQuestionFromNodeAction(input: {
   let deleted: { count: number };
 
   try {
-    deleted = await prisma.question.deleteMany({
+    deleted = await prisma.concept.deleteMany({
       where: {
         id: parsed.data.questionId,
         userId,
@@ -229,7 +235,7 @@ export async function removeGeneratedQuestionFromNodeAction(input: {
   } catch {
     return {
       status: "error",
-      error: "Could not remove the generated question right now.",
+      error: "Could not remove this concept right now.",
     };
   }
 
@@ -247,7 +253,7 @@ export async function removeGeneratedQuestionFromNodeAction(input: {
   };
 }
 
-export async function resetQuestionReviewStateAction(formData: FormData) {
+export async function resetConceptReviewStateAction(formData: FormData) {
   const userId = await requireAuthUserId();
 
   const parsed = questionSettingsSchema.safeParse({
@@ -256,11 +262,10 @@ export async function resetQuestionReviewStateAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/dashboard?error=Invalid%20question%20settings");
+    redirect("/dashboard?error=Invalid%20concept%20settings");
   }
 
-  const returnTo = normalizeReturnTo(parsed.data.returnTo);
-  const question = await prisma.question.findFirst({
+  const concept = await prisma.concept.findFirst({
     where: {
       id: parsed.data.questionId,
       userId,
@@ -270,42 +275,45 @@ export async function resetQuestionReviewStateAction(formData: FormData) {
     },
   });
 
-  if (!question) {
-    redirect(returnTo);
+  if (!concept) {
+    redirect("/dashboard?error=Concept%20not%20found");
   }
 
   await prisma.reviewState.upsert({
     where: {
-      userId_questionId: {
+      userId_conceptId: {
         userId,
-        questionId: question.id,
+        conceptId: concept.id,
       },
     },
     create: {
       userId,
-      questionId: question.id,
+      conceptId: concept.id,
       status: "NEW",
       intervalDays: 1,
       repetitionCount: 0,
-      lastReviewedAt: null,
       nextReviewAt: new Date(),
+      lastAnsweredAt: null,
+      lastReviewedAt: null,
     },
     update: {
       status: "NEW",
       intervalDays: 1,
       repetitionCount: 0,
-      lastReviewedAt: null,
       nextReviewAt: new Date(),
+      lastAnsweredAt: null,
+      lastReviewedAt: null,
     },
   });
 
+  const returnTo = normalizeReturnTo(parsed.data.returnTo);
   revalidatePath("/dashboard");
   revalidatePath(returnTo);
-  revalidatePath(`/quiz/${question.id}`);
+  revalidatePath(`/quiz/${concept.id}`);
   redirect(returnTo);
 }
 
-export async function deleteQuestionAction(formData: FormData) {
+export async function deleteConceptAction(formData: FormData) {
   const userId = await requireAuthUserId();
 
   const parsed = questionDeleteSchema.safeParse({
@@ -315,11 +323,10 @@ export async function deleteQuestionAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/dashboard?error=Invalid%20question%20settings");
+    redirect("/dashboard?error=Invalid%20concept%20settings");
   }
 
-  const returnTo = normalizeReturnTo(parsed.data.returnTo);
-  const question = await prisma.question.findFirst({
+  const concept = await prisma.concept.findFirst({
     where: {
       id: parsed.data.questionId,
       userId,
@@ -329,16 +336,20 @@ export async function deleteQuestionAction(formData: FormData) {
     },
   });
 
-  if (!question) {
-    redirect(returnTo);
+  if (!concept) {
+    redirect("/dashboard?error=Concept%20not%20found");
   }
 
-  await prisma.question.delete({
+  await prisma.concept.delete({
     where: {
-      id: question.id,
+      id: concept.id,
+    },
+    select: {
+      id: true,
     },
   });
 
+  const returnTo = normalizeReturnTo(parsed.data.returnTo);
   revalidatePath("/dashboard");
   revalidatePath(returnTo);
   redirect(returnTo);

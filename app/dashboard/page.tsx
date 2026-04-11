@@ -142,8 +142,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             <h2 className="text-lg font-semibold">Review Queue</h2>
             <p className="mt-1 text-sm text-zinc-600">
               {dueCount === 0
-                ? "No questions are due right now."
-                : `${dueCount} question${dueCount === 1 ? "" : "s"} due today.`}
+                ? "No concepts are due right now."
+                : `${dueCount} concept${dueCount === 1 ? "" : "s"} due today.`}
             </p>
             {firstDueQuestion ? (
               <Link
@@ -153,7 +153,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                 Start Review
               </Link>
             ) : (
-              <p className="mt-3 text-sm text-zinc-500">Come back later or add more questions to study.</p>
+              <p className="mt-3 text-sm text-zinc-500">Come back later or add more concepts to study.</p>
             )}
           </section>
 

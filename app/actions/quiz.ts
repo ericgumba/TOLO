@@ -14,7 +14,7 @@ import { assertCanUseLlm, LlmDailyLimitExceededError, logLlmUsage } from "@/lib/
 import { prisma } from "@/lib/prisma";
 import { normalizeQuestionText } from "@/lib/quiz/generated-questions";
 import { GENERATED_QUESTION_SUGGESTION_COUNT } from "@/lib/quiz/constants";
-import { type QuizInteractionState } from "@/lib/quiz/session-state";
+import { type QuizGeneratedQuestionLink, type QuizInteractionState } from "@/lib/quiz/session-state";
 import { upsertReviewStateFromAttempt } from "@/lib/review/service";
 
 type QuestionContextNode = {
@@ -23,8 +23,13 @@ type QuestionContextNode = {
   level: "SUBJECT" | "TOPIC" | "SUBTOPIC";
 };
 
+type QuizQuestionKind = "main" | "generated";
+
 type LoadedQuizState = {
-  question: {
+  questionKind: QuizQuestionKind;
+  mainQuestionId: string;
+  quizPath: string;
+  prompt: {
     id: string;
     body: string;
     nodeId: string;
@@ -36,8 +41,8 @@ type LoadedQuizState = {
     };
   };
   context: QuestionContextNode[];
-  existingQuestionBodies: string[];
-  generatedQuestions: string[];
+  existingConceptTitles: string[];
+  generatedQuestions: QuizGeneratedQuestionLink[];
 };
 
 const GENERATED_QUESTION_CATEGORY_ORDER: GeneratedQuestionCategory[] = [
@@ -50,17 +55,18 @@ const GENERATED_QUESTION_CATEGORY_ORDER: GeneratedQuestionCategory[] = [
 
 function sortGeneratedQuestionsByCategory(
   generatedQuestions: Array<{
+    id: string;
     category: GeneratedQuestionCategory;
     body: string;
   }>,
-): string[] {
+): QuizGeneratedQuestionLink[] {
   return [...generatedQuestions]
     .sort(
       (left, right) =>
         GENERATED_QUESTION_CATEGORY_ORDER.indexOf(left.category) -
         GENERATED_QUESTION_CATEGORY_ORDER.indexOf(right.category),
     )
-    .map((item) => item.body);
+    .map((item) => ({ id: item.id, body: item.body }));
 }
 
 function normalizeFrom(value?: string): string {
@@ -124,39 +130,84 @@ function mapHintFailureReasonToErrorCode(
   return "hint_network_error";
 }
 
-async function loadQuizState(userId: string, questionId: string): Promise<LoadedQuizState | null> {
-  const question = await prisma.question.findFirst({
-    where: {
-      id: questionId,
-      userId,
-    },
-    select: {
-      id: true,
-      body: true,
-      nodeId: true,
-      node: {
-        select: {
-          parentId: true,
-          id: true,
-          title: true,
-          level: true,
-        },
-      },
-      generatedQuestions: {
-        select: {
-          category: true,
-          body: true,
-        },
-      },
-    },
-  });
+async function loadQuizState(
+  userId: string,
+  questionId: string,
+  questionKind: QuizQuestionKind,
+): Promise<LoadedQuizState | null> {
+  const prompt =
+    questionKind === "main"
+      ? await prisma.concept.findFirst({
+          where: {
+            id: questionId,
+            userId,
+          },
+          select: {
+            id: true,
+            title: true,
+            nodeId: true,
+            node: {
+              select: {
+                parentId: true,
+                id: true,
+                title: true,
+                level: true,
+              },
+            },
+            generatedQuestions: {
+              select: {
+                id: true,
+                category: true,
+                body: true,
+              },
+            },
+          },
+        })
+      : await prisma.generatedQuestion.findFirst({
+          where: {
+            id: questionId,
+            concept: {
+              userId,
+            },
+          },
+          select: {
+            id: true,
+            body: true,
+            concept: {
+              select: {
+                id: true,
+                nodeId: true,
+                node: {
+                  select: {
+                    parentId: true,
+                    id: true,
+                    title: true,
+                    level: true,
+                  },
+                },
+              },
+            },
+          },
+        });
 
-  if (!question) {
+  if (!prompt) {
     return null;
   }
 
   const context: QuestionContextNode[] = [];
-  let currentParentId = question.node.parentId;
+  const questionNode =
+    questionKind === "main"
+      ? prompt.node
+      : prompt.concept.node;
+  const questionNodeId =
+    questionKind === "main"
+      ? prompt.nodeId
+      : prompt.concept.nodeId;
+  const mainQuestionId =
+    questionKind === "main"
+      ? prompt.id
+      : prompt.concept.id;
+  let currentParentId = questionNode.parentId;
 
   while (currentParentId) {
     const parentNode = await prisma.node.findFirst({
@@ -186,36 +237,98 @@ async function loadQuizState(userId: string, questionId: string): Promise<Loaded
   }
 
   context.push({
-    id: question.node.id,
-    title: question.node.title,
-    level: question.node.level,
+    id: questionNode.id,
+    title: questionNode.title,
+    level: questionNode.level,
   });
 
-  const existingQuestions = await prisma.question.findMany({
+  const existingConcepts = await prisma.concept.findMany({
     where: {
       userId,
-      nodeId: question.nodeId,
+      nodeId: questionNodeId,
     },
     orderBy: {
       createdAt: "asc",
     },
     select: {
-      body: true,
+      title: true,
     },
   });
 
   return {
-    question,
+    questionKind,
+    mainQuestionId,
+    quizPath: questionKind === "main" ? `/quiz/${prompt.id}` : `/quiz/generated/${prompt.id}`,
+    prompt:
+      questionKind === "main"
+        ? {
+            id: prompt.id,
+            body: prompt.title,
+            nodeId: prompt.nodeId,
+            node: prompt.node,
+          }
+        : {
+            id: prompt.id,
+            body: prompt.body,
+            nodeId: prompt.concept.nodeId,
+            node: prompt.concept.node,
+          },
     context,
-    existingQuestionBodies: existingQuestions.map((item) => item.body),
-    generatedQuestions: sortGeneratedQuestionsByCategory(question.generatedQuestions),
+    existingConceptTitles: existingConcepts.map((item) => item.title),
+    generatedQuestions:
+      questionKind === "main"
+        ? sortGeneratedQuestionsByCategory(prompt.generatedQuestions)
+        : [],
   };
 }
 
-function revalidateQuizPaths(questionId: string, from: string) {
+function revalidateQuizPaths(quizPath: string, from: string) {
   revalidatePath("/dashboard");
   revalidatePath(from);
-  revalidatePath(`/quiz/${questionId}`);
+  revalidatePath(quizPath);
+}
+
+async function persistQuizScoreIfPossible(input: {
+  questionKind: QuizQuestionKind;
+  questionId: string;
+  mainQuestionId: string;
+  score: number;
+}) {
+  try {
+    if (input.questionKind === "main") {
+      await Promise.all([
+        prisma.concept.update({
+          where: {
+            id: input.mainQuestionId,
+          },
+          data: {
+            score: input.score,
+          },
+        }),
+        prisma.generatedQuestion.updateMany({
+          where: {
+            conceptId: input.mainQuestionId,
+          },
+          data: {
+            score: input.score,
+          },
+        }),
+      ]);
+
+      return;
+    }
+
+    await prisma.generatedQuestion.update({
+      where: {
+        id: input.questionId,
+      },
+      data: {
+        score: input.score,
+      },
+    });
+  } catch {
+    // Score persistence is optional metadata and should not block quiz feedback.
+  }
 }
 
 export async function runQuizInteractionAction(
@@ -230,6 +343,7 @@ export async function runQuizInteractionAction(
 
   const parsed = quizInteractionSchema.safeParse({
     questionId: formData.get("questionId"),
+    questionKind: formData.get("questionKind") || undefined,
     intent: formData.get("intent"),
     answer: formData.get("answer") || undefined,
     from: formData.get("from") || undefined,
@@ -243,7 +357,8 @@ export async function runQuizInteractionAction(
     return buildErrorState(previousState, "attempt_save_failed", draftAnswer);
   }
 
-  const loaded = await loadQuizState(session.user.id, parsed.data.questionId);
+  const questionKind = parsed.data.questionKind ?? "main";
+  const loaded = await loadQuizState(session.user.id, parsed.data.questionId, questionKind);
 
   if (!loaded) {
     return buildErrorState(
@@ -274,7 +389,7 @@ export async function runQuizInteractionAction(
 
     const hintLevel = (existingHints.length + 1) as 1 | 2 | 3;
     const hintResult = await generateQuestionHint({
-      question: loaded.question.body,
+      question: loaded.prompt.body,
       context: loaded.context,
       quizHistory: [],
       hintLevel,
@@ -307,7 +422,7 @@ export async function runQuizInteractionAction(
       draftAnswer,
       submittedAnswer: null,
       feedback: null,
-      suggestedQuestion: null,
+      suggestedConcept: null,
       activeHints: [...existingHints, finalHint],
       revealedAnswer: previousState.revealedAnswer,
       generatedQuestions: [],
@@ -341,7 +456,7 @@ export async function runQuizInteractionAction(
     }
 
     const revealedAnswerResult = await revealQuestionAnswer({
-      question: loaded.question.body,
+      question: loaded.prompt.body,
       context: loaded.context,
       quizHistory: [],
       existingHints,
@@ -368,7 +483,7 @@ export async function runQuizInteractionAction(
       draftAnswer,
       submittedAnswer: null,
       feedback: null,
-      suggestedQuestion: null,
+      suggestedConcept: null,
       activeHints: existingHints,
       revealedAnswer,
       generatedQuestions: [],
@@ -393,13 +508,13 @@ export async function runQuizInteractionAction(
   }
 
   const scoringResult = await gradeQuestionAttempt(
-    loaded.question.body,
+    loaded.prompt.body,
     trimmedAnswer,
     loaded.context,
     [],
-    loaded.existingQuestionBodies,
+    loaded.existingConceptTitles,
     {
-      includeGeneratedQuestions: loaded.generatedQuestions.length === 0,
+      includeGeneratedQuestions: loaded.questionKind === "main" && loaded.generatedQuestions.length === 0,
     },
   );
 
@@ -417,30 +532,54 @@ export async function runQuizInteractionAction(
   let generatedQuestions = loaded.generatedQuestions;
 
   try {
-    await upsertReviewStateFromAttempt({
-      userId: session.user.id,
-      questionId: loaded.question.id,
-      llmScore: scoringResult.value.score,
-      reviewedAt: answeredAt,
-    });
+    if (loaded.questionKind === "main") {
+      await upsertReviewStateFromAttempt({
+        userId: session.user.id,
+        questionId: loaded.mainQuestionId,
+        llmScore: scoringResult.value.score,
+        reviewedAt: answeredAt,
+      });
+    }
 
-    if (generatedQuestions.length === 0 && scoringResult.value.generatedQuestions.length > 0) {
-      generatedQuestions = scoringResult.value.generatedQuestions.slice(0, GENERATED_QUESTION_SUGGESTION_COUNT);
-
+    if (
+      loaded.questionKind === "main" &&
+      generatedQuestions.length === 0 &&
+      scoringResult.value.generatedQuestions.length > 0
+    ) {
       await prisma.generatedQuestion.createMany({
-        data: generatedQuestions.map((body, index) => ({
-          questionId: loaded.question.id,
+        data: scoringResult.value.generatedQuestions.slice(0, GENERATED_QUESTION_SUGGESTION_COUNT).map((body, index) => ({
+          conceptId: loaded.mainQuestionId,
           category: GENERATED_QUESTION_CATEGORY_ORDER[index] ?? "TEACH",
           body,
         })),
         skipDuplicates: true,
       });
+
+      const createdGeneratedQuestions = await prisma.generatedQuestion.findMany({
+        where: {
+          conceptId: loaded.mainQuestionId,
+        },
+        select: {
+          id: true,
+          category: true,
+          body: true,
+        },
+      });
+
+      generatedQuestions = sortGeneratedQuestionsByCategory(createdGeneratedQuestions);
     }
   } catch {
     return buildErrorState(previousState, "attempt_save_failed", trimmedAnswer);
   }
 
-  revalidateQuizPaths(loaded.question.id, from);
+  await persistQuizScoreIfPossible({
+    questionKind: loaded.questionKind,
+    questionId: loaded.prompt.id,
+    mainQuestionId: loaded.mainQuestionId,
+    score: scoringResult.value.score,
+  });
+
+  revalidateQuizPaths(loaded.quizPath, from);
 
   return {
     status: "submitted",
@@ -452,7 +591,7 @@ export async function runQuizInteractionAction(
       llmCorrection: scoringResult.value.correction,
       answeredAtIso: answeredAt.toISOString(),
     },
-    suggestedQuestion: scoringResult.value.suggestedQuestion,
+    suggestedConcept: scoringResult.value.suggestedConcept,
     activeHints: previousState.activeHints,
     revealedAnswer: previousState.revealedAnswer,
     generatedQuestions,

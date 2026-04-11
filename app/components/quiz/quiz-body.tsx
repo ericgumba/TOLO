@@ -5,11 +5,13 @@ import { FeedbackCard } from "@/app/components/quiz/feedback-card";
 import { GeneratedQuestionSuggestions } from "@/app/components/quiz/generated-question-suggestions";
 import { QuestionCard } from "@/app/components/quiz/question-card";
 import { SuggestedQuestionCard } from "@/app/components/quiz/suggested-question-card";
-import { type QuizSubmissionFeedback } from "@/lib/quiz/session-state";
+import { type QuizGeneratedQuestionLink, type QuizSubmissionFeedback } from "@/lib/quiz/session-state";
 
 type QuizBodyProps = {
-  questionId: string;
-  questionBody: string;
+  promptId: string;
+  questionKind?: "main" | "generated";
+  promptLabel?: "Concept" | "Question";
+  promptBody: string;
   from: string;
   draftAnswer: string;
   activeHints: string[];
@@ -18,30 +20,32 @@ type QuizBodyProps = {
     answer: string;
     feedback: QuizSubmissionFeedback;
   } | null;
-  suggestedQuestion: string | null;
-  suggestedQuestionStatus: "idle" | "adding" | "added" | "duplicate" | "error";
-  generatedQuestions: string[];
+  suggestedConcept: string | null;
+  suggestedConceptStatus: "idle" | "adding" | "added" | "duplicate" | "error";
+  generatedQuestions: QuizGeneratedQuestionLink[];
   formAction: (formData: FormData) => void;
   onDraftAnswerChange: (nextValue: string) => void;
   onReset: () => void;
-  onAddSuggestedQuestion: () => void | Promise<void>;
+  onAddSuggestedConcept: () => void | Promise<void>;
 };
 
 export function QuizBody({
-  questionId,
-  questionBody,
+  promptId,
+  questionKind = "main",
+  promptLabel = questionKind === "generated" ? "Question" : "Concept",
+  promptBody,
   from,
   draftAnswer,
   activeHints,
   revealedAnswer,
   submission,
-  suggestedQuestion,
-  suggestedQuestionStatus,
+  suggestedConcept,
+  suggestedConceptStatus,
   generatedQuestions,
   formAction,
   onDraftAnswerChange,
   onReset,
-  onAddSuggestedQuestion,
+  onAddSuggestedConcept,
 }: QuizBodyProps) {
   const hasSubmission = submission !== null;
 
@@ -49,15 +53,16 @@ export function QuizBody({
     <div className="flex flex-col gap-6">
       {hasSubmission ? (
         <div className="flex flex-col gap-4">
-          <QuestionCard questionBody={questionBody} canReset onReset={onReset} />
-          <AnswerCard questionId={questionId} from={from} answer={submission.answer} editable={false} />
+          <QuestionCard label={promptLabel} promptBody={promptBody} canReset onReset={onReset} />
+          <AnswerCard promptId={promptId} questionKind={questionKind} from={from} answer={submission.answer} editable={false} />
           <FeedbackCard feedback={submission.feedback} />
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          <QuestionCard questionBody={questionBody} canReset={false} />
+          <QuestionCard label={promptLabel} promptBody={promptBody} canReset={false} />
           <AnswerCard
-            questionId={questionId}
+            promptId={promptId}
+            questionKind={questionKind}
             from={from}
             draftAnswer={draftAnswer}
             editable
@@ -71,14 +76,19 @@ export function QuizBody({
       )}
 
       {hasSubmission && generatedQuestions.length > 0 ? (
-        <GeneratedQuestionSuggestions questions={generatedQuestions} />
+        <GeneratedQuestionSuggestions questions={generatedQuestions} returnTo={from} />
       ) : null}
 
-      {hasSubmission && suggestedQuestion ? (
+      {hasSubmission && suggestedConcept ? (
         <SuggestedQuestionCard
-          question={suggestedQuestion}
-          status={suggestedQuestionStatus}
-          onAdd={onAddSuggestedQuestion}
+          question={suggestedConcept}
+          label="Suggested Concept"
+          helperText="This is a related concept you can add to the current node for future study."
+          actionLabel="Add concept to node"
+          duplicateMessage="This concept already exists on the current node."
+          errorMessage="Could not add this concept right now. Please retry."
+          status={suggestedConceptStatus}
+          onAdd={onAddSuggestedConcept}
         />
       ) : null}
 

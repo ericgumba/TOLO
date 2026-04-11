@@ -24,14 +24,14 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
 
   const [{ questionId }, query] = await Promise.all([params, searchParams]);
 
-  const question = await prisma.question.findFirst({
+  const concept = await prisma.concept.findFirst({
     where: {
       id: questionId,
       userId: session.user.id,
     },
     select: {
       id: true,
-      body: true,
+      title: true,
       node: {
         select: {
           id: true,
@@ -42,7 +42,7 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
     },
   });
 
-  if (!question) {
+  if (!concept) {
     redirect("/dashboard");
   }
 
@@ -50,14 +50,14 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
 
   await prisma.reviewState.upsert({
     where: {
-      userId_questionId: {
+      userId_conceptId: {
         userId: session.user.id,
-        questionId: question.id,
+        conceptId: concept.id,
       },
     },
     create: {
       userId: session.user.id,
-      questionId: question.id,
+      conceptId: concept.id,
       status: "NEW",
       intervalDays: 1,
       repetitionCount: 0,
@@ -69,13 +69,20 @@ export default async function QuizPage({ params, searchParams }: QuizPageProps) 
     },
   });
 
-  const from = query.from?.startsWith("/") ? query.from : `/subject/${question.node.id}`;
+  const from = query.from?.startsWith("/") ? query.from : `/subject/${concept.node.id}`;
   const mode = typeof query.mode === "string" ? query.mode : undefined;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-6 py-10">
-      <QuizHeader from={from} nodeTitle={question.node.title} nodeLevel={question.node.level} />
-      <QuizSession questionId={question.id} nodeId={question.node.id} questionBody={question.body} from={from} mode={mode} />
+      <QuizHeader from={from} nodeTitle={concept.node.title} nodeLevel={concept.node.level} title="Concept" />
+      <QuizSession
+        promptId={concept.id}
+        nodeId={concept.node.id}
+        promptBody={concept.title}
+        promptLabel="Concept"
+        from={from}
+        mode={mode}
+      />
     </main>
   );
 }

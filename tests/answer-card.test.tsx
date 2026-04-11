@@ -7,7 +7,7 @@ describe("AnswerCard", () => {
   it("renders a microphone button in editable mode", () => {
     const html = renderToStaticMarkup(
       <AnswerCard
-        questionId="c12345678901234567890124"
+        promptId="c12345678901234567890124"
         from="/subject/c12345678901234567890125"
         draftAnswer=""
         editable
@@ -24,7 +24,7 @@ describe("AnswerCard", () => {
   it("switches the hint button to reveal the answer after three hints", () => {
     const html = renderToStaticMarkup(
       <AnswerCard
-        questionId="c12345678901234567890124"
+        promptId="c12345678901234567890124"
         from="/subject/c12345678901234567890125"
         draftAnswer=""
         editable
@@ -40,7 +40,7 @@ describe("AnswerCard", () => {
   it("renders the revealed answer inline", () => {
     const html = renderToStaticMarkup(
       <AnswerCard
-        questionId="c12345678901234567890124"
+        promptId="c12345678901234567890124"
         from="/subject/c12345678901234567890125"
         draftAnswer=""
         editable
@@ -58,7 +58,7 @@ describe("AnswerCard", () => {
   it("does not render the microphone button in read-only mode", () => {
     const html = renderToStaticMarkup(
       <AnswerCard
-        questionId="c12345678901234567890124"
+        promptId="c12345678901234567890124"
         from="/subject/c12345678901234567890125"
         answer="TCP uses acknowledgments."
         editable={false}

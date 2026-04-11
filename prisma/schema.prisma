@@ -49,9 +49,9 @@ model User {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
-  nodes         Node[]
-  questions     Question[]
-  reviewStates  ReviewState[]
+  nodes          Node[]
+  concepts       Concept[]
+  reviewStates   ReviewState[]
   llmUsageEvents LlmUsageEvent[]
 }
 
@@ -65,51 +65,54 @@ model Node {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parent    Node?      @relation("NodeChildren", fields: [parentId], references: [id], onDelete: Cascade)
-  children  Node[]     @relation("NodeChildren")
-  questions Question[]
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent    Node?     @relation("NodeChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Node[]    @relation("NodeChildren")
+  concepts  Concept[]
 
   @@index([userId])
   @@index([userId, parentId])
   @@index([userId, level])
 }
 
-model Question {
+model Concept {
   id        String   @id @default(cuid())
   userId    String
   nodeId    String
-  body      String
+  title     String   @map("body")
+  score     Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  node         Node              @relation(fields: [nodeId], references: [id], onDelete: Cascade)
-  reviewStates ReviewState[]
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node               Node              @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  reviewStates       ReviewState[]
   generatedQuestions GeneratedQuestion[]
 
   @@index([userId, nodeId])
   @@index([nodeId])
+  @@map("Question")
 }
 
 model GeneratedQuestion {
   id         String                    @id @default(cuid())
-  questionId String
+  conceptId  String                    @map("questionId")
   category   GeneratedQuestionCategory
   body       String
+  score      Int?
   createdAt  DateTime                  @default(now())
   updatedAt  DateTime                  @updatedAt
 
-  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  concept Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
 
-  @@unique([questionId, category])
-  @@index([questionId])
+  @@unique([conceptId, category], map: "GeneratedQuestion_questionId_category_key")
+  @@index([conceptId], map: "GeneratedQuestion_questionId_idx")
 }
 
 model ReviewState {
   id              String       @id @default(cuid())
   userId          String
-  questionId      String
+  conceptId       String       @map("questionId")
   status          ReviewStatus @default(NEW)
   intervalDays    Int          @default(1)
   repetitionCount Int          @default(0)
@@ -120,10 +123,10 @@ model ReviewState {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concept Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, questionId])
+  @@unique([userId, conceptId], map: "ReviewState_userId_questionId_key")
   @@index([userId, nextReviewAt])
   @@index([userId, status])
 }

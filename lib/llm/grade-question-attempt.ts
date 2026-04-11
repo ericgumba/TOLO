@@ -14,7 +14,7 @@ type GradeResult = {
   score: number;
   feedback: string;
   correction: string;
-  suggestedQuestion: string;
+  suggestedConcept: string;
   generatedQuestions: string[];
 };
 
@@ -52,78 +52,54 @@ function sanitizeDiagnosis(value: unknown): string | null {
   return trimmed;
 }
 
-function buildSuggestedQuestionFromConcept(concept: string): string {
-  const normalizedConcept = collapseWhitespace(concept).replace(/[?.!]+$/g, "").trim();
-
-  if (normalizedConcept.length === 0) {
-    return "What is this concept?";
-  }
-
-  const lowerConcept = normalizedConcept.toLowerCase();
-  const useAre =
-    /\band\b/.test(lowerConcept) || (lowerConcept.endsWith("s") && !lowerConcept.endsWith("ss"));
-
-  return `${useAre ? "What are" : "What is"} ${normalizedConcept}?`;
+function stripQuestionPrefix(value: string): string {
+  return value
+    .replace(/^what\s+is\s+an?\s+/i, "")
+    .replace(/^what\s+are\s+/i, "")
+    .replace(/^what\s+is\s+/i, "")
+    .replace(/[?.!]+$/g, "")
+    .trim();
 }
 
-function sanitizeSuggestedQuestion(
+function sanitizeSuggestedConcept(
   value: unknown,
-  question: string,
-  existingQuestions: string[] = [],
+  concept: string,
+  existingConcepts: string[] = [],
   diagnosis?: unknown,
 ): string | null {
-  const seenQuestions = new Set(
-    [question, ...existingQuestions].map(normalizeQuestionText).filter((normalized) => normalized.length > 0),
+  const seenConcepts = new Set(
+    [concept, ...existingConcepts].map((item) => normalizeQuestionText(item)).filter((normalized) => normalized.length > 0),
   );
 
-  if (typeof value !== "string") {
-    const fallbackDiagnosis = sanitizeDiagnosis(diagnosis);
-    if (!fallbackDiagnosis) {
-      return null;
+  const primaryCandidate =
+    typeof value === "string" && value.trim().length > 0 ? stripQuestionPrefix(collapseWhitespace(value)) : null;
+  const fallbackCandidate = sanitizeDiagnosis(diagnosis);
+
+  for (const candidate of [primaryCandidate, fallbackCandidate]) {
+    if (!candidate) {
+      continue;
     }
 
-    const fallbackQuestion = buildSuggestedQuestionFromConcept(fallbackDiagnosis);
-    return seenQuestions.has(normalizeQuestionText(fallbackQuestion)) ? null : fallbackQuestion;
-  }
-
-  const trimmed = collapseWhitespace(value);
-
-  if (trimmed.length === 0) {
-    const fallbackDiagnosis = sanitizeDiagnosis(diagnosis);
-    if (!fallbackDiagnosis) {
-      return null;
+    if (!seenConcepts.has(normalizeQuestionText(candidate))) {
+      return candidate;
     }
-
-    const fallbackQuestion = buildSuggestedQuestionFromConcept(fallbackDiagnosis);
-    return seenQuestions.has(normalizeQuestionText(fallbackQuestion)) ? null : fallbackQuestion;
   }
 
-  const normalizedQuestion = normalizeQuestionText(trimmed.endsWith("?") ? trimmed : `${trimmed}?`);
-  if (!seenQuestions.has(normalizedQuestion)) {
-    return trimmed.endsWith("?") ? trimmed : `${trimmed}?`;
-  }
-
-  const fallbackDiagnosis = sanitizeDiagnosis(diagnosis);
-  if (!fallbackDiagnosis) {
-    return null;
-  }
-
-  const fallbackQuestion = buildSuggestedQuestionFromConcept(fallbackDiagnosis);
-  return seenQuestions.has(normalizeQuestionText(fallbackQuestion)) ? null : fallbackQuestion;
+  return null;
 }
 
 export async function gradeQuestionAttempt(
-  question: string,
+  concept: string,
   answer: string,
   context: LlmQuestionContextNode[] = [],
   quizHistory: LlmQuizHistoryItem[] = [],
-  existingQuestions: string[] = [],
+  existingConcepts: string[] = [],
   options: GradeQuestionAttemptOptions = {},
 ): Promise<LlmCallResult<GradeResult>> {
   try {
     const contextText = formatContextPath(context);
     const historyText = formatQuizHistory(quizHistory);
-    const existingQuestionsText = formatIndexedStringList(existingQuestions);
+    const existingConceptsText = formatIndexedStringList(existingConcepts);
     const suggestionCategoryOrderInstruction = getSuggestionCategoryOrderInstruction();
     const includeGeneratedQuestions = options.includeGeneratedQuestions ?? true;
 
@@ -132,7 +108,7 @@ export async function gradeQuestionAttempt(
       diagnosis?: unknown;
       feedback?: unknown;
       correction?: unknown;
-      suggestedQuestion?: unknown;
+      suggestedConcept?: unknown;
       generatedQuestions?: unknown;
     }>({
       temperature: 0.2,
@@ -140,14 +116,14 @@ export async function gradeQuestionAttempt(
         {
           role: "system",
           content:
-            "You are grading a student's free-form answer.\n\n" +
+            "You are grading a student's free-form definition of a concept.\n\n" +
             "Return strict JSON with exactly these keys:\n" +
             "- score (integer 1..100)\n" +
-            "- diagnosis (string: the single most important missing, misunderstood, or vague concept)\n" +
-            '- diagnosisType (one of: "missing", "misunderstood", "too_vague", "partially_correct", "correct")\n' +
+            "- diagnosis (string: the single most important missing, misunderstood, or vague related concept)\n" +
+            "- diagnosisType (one of: \"missing\", \"misunderstood\", \"too_vague\", \"partially_correct\", \"correct\")\n" +
             "- feedback (string)\n" +
             "- correction (string)\n" +
-            "- suggestedQuestion (string)\n" +
+            "- suggestedConcept (string)\n" +
             (includeGeneratedQuestions
               ? `- generatedQuestions (array of exactly ${GENERATED_QUESTION_SUGGESTION_COUNT} strings)\n\n`
               : "\n") +
@@ -158,18 +134,15 @@ export async function gradeQuestionAttempt(
             "- 1..39: mostly incorrect or seriously confused\n" +
             "Do not lower the score only because the answer is brief if it is substantively correct.\n\n" +
             "Field rules:\n" +
-            "- diagnosis must name ONE core concept to focus on next.\n" +
+            "- diagnosis must name ONE core related concept to focus on next.\n" +
             "- diagnosisType must reflect the student's main issue.\n" +
             "- feedback must briefly state what is correct and what is missing or unclear (1–3 sentences).\n" +
-            "- correction must give a clean, concise, correct answer to the original question.\n" +
-            "- suggestedQuestion must be a very basic definitional question\n" +
-            '- suggestedQuestion must use one of these forms: "What is X?", "What is a X?", "What is an X?", or "What are X?".\n' +
-            "- suggestedQuestion must target a related concept, not just restate the original question.\n" +
-            "- suggestedQuestion must be concise and self-contained.\n" +
-            "- suggestedQuestion must not repeat or be similar to any existing questions.\n" +
+            "- correction must give a clean, concise, correct definition of the concept.\n" +
+            "- suggestedConcept must be a short related concept title, not a question.\n" +
+            "- suggestedConcept must not repeat the current concept or an existing concept.\n" +
             "- If the answer is correct, diagnosis should point to the next related concept to reinforce.\n\n" +
             (includeGeneratedQuestions
-              ? `Always generate exactly ${GENERATED_QUESTION_SUGGESTION_COUNT} distinct future study questions for the same topic.\n` +
+              ? `Always generate exactly ${GENERATED_QUESTION_SUGGESTION_COUNT} distinct future study questions for the same concept.\n` +
                 `Order generatedQuestions as ${suggestionCategoryOrderInstruction}.\n` +
                 "Do not use transitional wording like 'Building on that' or 'As a follow-up'.\n" +
                 "Question type rules:\n" +
@@ -190,9 +163,9 @@ export async function gradeQuestionAttempt(
           content:
             `Context path: ${contextText}\n\n` +
             `Quiz history: ${historyText}\n\n` +
-            `Existing questions at this node:\n${existingQuestionsText}\n\n` +
-            `Question: ${question}\n\n` +
-            `Student answer: ${answer}\n\n` +
+            `Existing concepts at this node:\n${existingConceptsText}\n\n` +
+            `Concept: ${concept}\n\n` +
+            `Student definition: ${answer}\n\n` +
             "Return JSON only.",
         },
       ],
@@ -215,14 +188,14 @@ export async function gradeQuestionAttempt(
       };
     }
 
-    const suggestedQuestion = sanitizeSuggestedQuestion(
-      response.value.suggestedQuestion,
-      question,
-      existingQuestions,
+    const suggestedConcept = sanitizeSuggestedConcept(
+      response.value.suggestedConcept,
+      concept,
+      existingConcepts,
       response.value.diagnosis,
     );
 
-    if (!suggestedQuestion) {
+    if (!suggestedConcept) {
       return {
         ok: false,
         reason: "invalid_response",
@@ -235,9 +208,9 @@ export async function gradeQuestionAttempt(
         score: clampScore(response.value.score),
         feedback: response.value.feedback.trim(),
         correction: response.value.correction.trim(),
-        suggestedQuestion,
+        suggestedConcept,
         generatedQuestions: includeGeneratedQuestions
-          ? sanitizeGeneratedQuestionSuggestions(response.value.generatedQuestions, question, existingQuestions)
+          ? sanitizeGeneratedQuestionSuggestions(response.value.generatedQuestions, concept, existingConcepts)
           : [],
       },
     };

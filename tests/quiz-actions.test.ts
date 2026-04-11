@@ -18,12 +18,17 @@ const {
   }),
   revalidatePathMock: vi.fn(),
   prismaMock: {
-    question: {
+    concept: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
+      update: vi.fn(),
     },
     generatedQuestion: {
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
       createMany: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
     },
     node: {
       findFirst: vi.fn(),
@@ -93,6 +98,7 @@ function buildFormData(entries: Record<string, string>): FormData {
 describe("runQuizInteractionAction", () => {
   const userId = "c12345678901234567890123";
   const questionId = "c12345678901234567890124";
+  const generatedQuestionId = "c12345678901234567890126";
   const nodeId = "c12345678901234567890125";
 
   beforeEach(() => {
@@ -103,9 +109,9 @@ describe("runQuizInteractionAction", () => {
         id: userId,
       },
     });
-    prismaMock.question.findFirst.mockResolvedValue({
+    prismaMock.concept.findFirst.mockResolvedValue({
       id: questionId,
-      body: "Base question",
+      title: "socket",
       nodeId,
       generatedQuestions: [],
       node: {
@@ -115,16 +121,41 @@ describe("runQuizInteractionAction", () => {
         level: "TOPIC",
       },
     });
+    prismaMock.generatedQuestion.findFirst.mockResolvedValue({
+      id: generatedQuestionId,
+      body: "Explain TCP.",
+      concept: {
+        id: questionId,
+        nodeId,
+        node: {
+          parentId: null,
+          id: nodeId,
+          title: "Topic",
+          level: "TOPIC",
+        },
+      },
+    });
     prismaMock.node.findFirst.mockResolvedValue(null);
-    prismaMock.question.findMany.mockResolvedValue([{ body: "Base question" }]);
+    prismaMock.concept.findMany.mockResolvedValue([{ title: "socket" }]);
+    prismaMock.concept.update.mockResolvedValue({
+      id: questionId,
+      score: 82,
+    });
+    prismaMock.generatedQuestion.findMany.mockResolvedValue([
+      { id: "generated-1", category: "EXPLAIN", body: "Generated question one?" },
+      { id: "generated-2", category: "ANALYZE", body: "Generated question two?" },
+      { id: "generated-3", category: "EVALUATE", body: "Generated question three?" },
+    ]);
     prismaMock.generatedQuestion.createMany.mockResolvedValue({ count: 3 });
+    prismaMock.generatedQuestion.update.mockResolvedValue({ id: generatedQuestionId, score: 82 });
+    prismaMock.generatedQuestion.updateMany.mockResolvedValue({ count: 0 });
     gradeQuestionAttemptMock.mockResolvedValue({
       ok: true,
       value: {
         score: 82,
         feedback: "Good answer.",
         correction: "No correction needed.",
-        suggestedQuestion: "What is a hypervisor?",
+        suggestedConcept: "thread",
         generatedQuestions: ["Generated question one?", "Generated question two?", "Generated question three?"],
       },
     });
@@ -134,14 +165,15 @@ describe("runQuizInteractionAction", () => {
     });
     generateQuestionAnswerMock.mockResolvedValue({
       ok: true,
-      value: "TCP detects loss or reordering with sequence numbers and acknowledgments, retransmits missing data, reorders buffered segments, and uses flow control to avoid overwhelming the receiver.",
+      value:
+        "TCP detects loss or reordering with sequence numbers and acknowledgments, retransmits missing data, reorders buffered segments, and uses flow control to avoid overwhelming the receiver.",
     });
     assertCanUseLlmMock.mockResolvedValue(undefined);
     logLlmUsageMock.mockResolvedValue(undefined);
     upsertReviewStateFromAttemptMock.mockResolvedValue(undefined);
   });
 
-  it("returns ephemeral feedback and suggestions after a successful submit", async () => {
+  it("returns feedback and clickable generated-question links after a successful main-question submit", async () => {
     const state = await runQuizInteractionAction(
       initialQuizInteractionState,
       buildFormData({
@@ -162,14 +194,14 @@ describe("runQuizInteractionAction", () => {
         answeredAtIso: expect.any(String),
       }),
     );
-    expect(state.suggestedQuestion).toBe("What is a hypervisor?");
+    expect(state.suggestedConcept).toBe("thread");
     expect(state.generatedQuestions).toEqual([
-      "Generated question one?",
-      "Generated question two?",
-      "Generated question three?",
+      { id: "generated-1", body: "Generated question one?" },
+      { id: "generated-2", body: "Generated question two?" },
+      { id: "generated-3", body: "Generated question three?" },
     ]);
     expect(gradeQuestionAttemptMock).toHaveBeenCalledWith(
-      "Base question",
+      "socket",
       "First answer",
       [
         {
@@ -179,28 +211,38 @@ describe("runQuizInteractionAction", () => {
         },
       ],
       [],
-      ["Base question"],
+      ["socket"],
       { includeGeneratedQuestions: true },
     );
     expect(prismaMock.generatedQuestion.createMany).toHaveBeenCalledWith({
       data: [
         {
-          questionId,
+          conceptId: questionId,
           category: "EXPLAIN",
           body: "Generated question one?",
         },
         {
-          questionId,
+          conceptId: questionId,
           category: "ANALYZE",
           body: "Generated question two?",
         },
         {
-          questionId,
+          conceptId: questionId,
           category: "EVALUATE",
           body: "Generated question three?",
         },
       ],
       skipDuplicates: true,
+    });
+    expect(prismaMock.generatedQuestion.findMany).toHaveBeenCalledWith({
+      where: {
+        conceptId: questionId,
+      },
+      select: {
+        id: true,
+        category: true,
+        body: true,
+      },
     });
     expect(upsertReviewStateFromAttemptMock).toHaveBeenCalledTimes(1);
     expect(logLlmUsageMock).toHaveBeenCalledWith(userId, "GRADE");
@@ -210,16 +252,18 @@ describe("runQuizInteractionAction", () => {
   });
 
   it("reuses already attached generated questions instead of creating new ones", async () => {
-    prismaMock.question.findFirst.mockResolvedValue({
+    prismaMock.concept.findFirst.mockResolvedValue({
       id: questionId,
-      body: "Base question",
+      title: "socket",
       nodeId,
       generatedQuestions: [
         {
+          id: "generated-1",
           category: "EXPLAIN",
           body: "Attached explain question?",
         },
         {
+          id: "generated-2",
           category: "ANALYZE",
           body: "Attached analyze question?",
         },
@@ -243,7 +287,7 @@ describe("runQuizInteractionAction", () => {
     );
 
     expect(gradeQuestionAttemptMock).toHaveBeenCalledWith(
-      "Base question",
+      "socket",
       "Another answer",
       [
         {
@@ -253,12 +297,87 @@ describe("runQuizInteractionAction", () => {
         },
       ],
       [],
-      ["Base question"],
+      ["socket"],
       { includeGeneratedQuestions: false },
     );
     expect(prismaMock.generatedQuestion.createMany).not.toHaveBeenCalled();
-    expect(state.suggestedQuestion).toBe("What is a hypervisor?");
-    expect(state.generatedQuestions).toEqual(["Attached explain question?", "Attached analyze question?"]);
+    expect(prismaMock.generatedQuestion.findMany).not.toHaveBeenCalled();
+    expect(state.suggestedConcept).toBe("thread");
+    expect(state.generatedQuestions).toEqual([
+      { id: "generated-1", body: "Attached explain question?" },
+      { id: "generated-2", body: "Attached analyze question?" },
+    ]);
+  });
+
+  it("grades generated-question quizzes without creating a new study-lens set", async () => {
+    const state = await runQuizInteractionAction(
+      initialQuizInteractionState,
+      buildFormData({
+        questionId: generatedQuestionId,
+        questionKind: "generated",
+        answer: "Generated answer",
+        from: `/subject/${nodeId}`,
+        intent: "submit",
+      }),
+    );
+
+    expect(gradeQuestionAttemptMock).toHaveBeenCalledWith(
+      "Explain TCP.",
+      "Generated answer",
+      [
+        {
+          id: nodeId,
+          title: "Topic",
+          level: "TOPIC",
+        },
+      ],
+      [],
+      ["socket"],
+      { includeGeneratedQuestions: false },
+    );
+    expect(prismaMock.generatedQuestion.createMany).not.toHaveBeenCalled();
+    expect(upsertReviewStateFromAttemptMock).not.toHaveBeenCalled();
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/quiz/generated/${generatedQuestionId}`);
+    expect(state.generatedQuestions).toEqual([]);
+    expect(state.suggestedConcept).toBe("thread");
+  });
+
+  it("still returns feedback when optional score persistence fails for a main-question submit", async () => {
+    prismaMock.concept.update.mockRejectedValue(new Error("column \"score\" does not exist"));
+    prismaMock.generatedQuestion.updateMany.mockRejectedValue(new Error("column \"score\" does not exist"));
+
+    const state = await runQuizInteractionAction(
+      initialQuizInteractionState,
+      buildFormData({
+        questionId,
+        answer: "First answer",
+        from: `/subject/${nodeId}`,
+        intent: "submit",
+      }),
+    );
+
+    expect(state.status).toBe("submitted");
+    expect(state.feedback?.llmScore).toBe(82);
+    expect(upsertReviewStateFromAttemptMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("still returns feedback when optional score persistence fails for a generated-question submit", async () => {
+    prismaMock.generatedQuestion.update.mockRejectedValue(new Error("column \"score\" does not exist"));
+
+    const state = await runQuizInteractionAction(
+      initialQuizInteractionState,
+      buildFormData({
+        questionId: generatedQuestionId,
+        questionKind: "generated",
+        answer: "Generated answer",
+        from: `/subject/${nodeId}`,
+        intent: "submit",
+      }),
+    );
+
+    expect(state.status).toBe("submitted");
+    expect(state.feedback?.llmScore).toBe(82);
+    expect(upsertReviewStateFromAttemptMock).not.toHaveBeenCalled();
   });
 
   it("returns updated hints without persisting an attempt", async () => {
@@ -278,14 +397,14 @@ describe("runQuizInteractionAction", () => {
 
     expect(state.status).toBe("idle");
     expect(state.feedback).toBeNull();
-    expect(state.suggestedQuestion).toBeNull();
+    expect(state.suggestedConcept).toBeNull();
     expect(state.generatedQuestions).toEqual([]);
     expect(state.activeHints).toEqual([
       "Start by defining the core unit.",
       "Think about the resources and execution context involved.",
     ]);
     expect(generateQuestionHintMock).toHaveBeenCalledWith({
-      question: "Base question",
+      question: "socket",
       context: [
         {
           id: nodeId,
@@ -318,14 +437,14 @@ describe("runQuizInteractionAction", () => {
 
     expect(state.status).toBe("idle");
     expect(state.feedback).toBeNull();
-    expect(state.suggestedQuestion).toBeNull();
+    expect(state.suggestedConcept).toBeNull();
     expect(state.generatedQuestions).toEqual([]);
     expect(state.activeHints).toEqual(["Hint 1", "Hint 2", "Hint 3"]);
     expect(state.revealedAnswer).toBe(
       "TCP detects loss or reordering with sequence numbers and acknowledgments, retransmits missing data, reorders buffered segments, and uses flow control to avoid overwhelming the receiver.",
     );
     expect(generateQuestionAnswerMock).toHaveBeenCalledWith({
-      question: "Base question",
+      question: "socket",
       context: [
         {
           id: nodeId,

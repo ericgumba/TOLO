@@ -2,61 +2,73 @@
 
 import { useActionState, useState } from "react";
 
-import { addSuggestedQuestionToNodeAction } from "@/app/actions/questions";
+import { addSuggestedConceptToNodeAction } from "@/app/actions/concepts";
 import { runQuizInteractionAction } from "@/app/actions/quiz";
 import { QuizBody } from "@/app/components/quiz/quiz-body";
 import { StatusBanners } from "@/app/components/quiz/status-banners";
 import { initialQuizInteractionState } from "@/lib/quiz/session-state";
 
 type QuizSessionProps = {
-  questionId: string;
+  promptId: string;
+  questionKind?: "main" | "generated";
   nodeId: string;
-  questionBody: string;
+  promptBody: string;
+  promptLabel?: "Concept" | "Question";
   from: string;
   mode?: string;
 };
 
-function QuizSessionInner({ questionId, nodeId, questionBody, from, onReset }: QuizSessionProps & { onReset: () => void }) {
+function QuizSessionInner({
+  promptId,
+  questionKind = "main",
+  nodeId,
+  promptBody,
+  promptLabel = questionKind === "generated" ? "Question" : "Concept",
+  from,
+  onReset,
+}: QuizSessionProps & { onReset: () => void }) {
   const [state, formAction] = useActionState(runQuizInteractionAction, initialQuizInteractionState);
   const [draftAnswer, setDraftAnswer] = useState("");
-  const [suggestedQuestionStatus, setSuggestedQuestionStatus] = useState<"idle" | "adding" | "added" | "duplicate" | "error">("idle");
+  const [suggestedConceptStatus, setSuggestedConceptStatus] = useState<"idle" | "adding" | "added" | "duplicate" | "error">("idle");
 
   function handleFormAction(formData: FormData) {
-    setSuggestedQuestionStatus("idle");
+    setSuggestedConceptStatus("idle");
     return formAction(formData);
   }
 
-  async function handleAddSuggestedQuestion() {
-    if (!state.suggestedQuestion) {
+  async function handleAddSuggestedConcept() {
+    if (!state.suggestedConcept) {
       return;
     }
 
-    setSuggestedQuestionStatus("adding");
+    setSuggestedConceptStatus("adding");
 
-    const result = await addSuggestedQuestionToNodeAction({
+    const result = await addSuggestedConceptToNodeAction({
       nodeId,
-      body: state.suggestedQuestion,
+      title: state.suggestedConcept,
       returnTo: from,
     });
 
     if (result.status === "success") {
-      setSuggestedQuestionStatus("added");
+      setSuggestedConceptStatus("added");
       return;
     }
 
     if (result.status === "duplicate") {
-      setSuggestedQuestionStatus("duplicate");
+      setSuggestedConceptStatus("duplicate");
       return;
     }
 
-    setSuggestedQuestionStatus("error");
+    setSuggestedConceptStatus("error");
   }
 
   return (
     <>
       <QuizBody
-        questionId={questionId}
-        questionBody={questionBody}
+        promptId={promptId}
+        questionKind={questionKind}
+        promptLabel={promptLabel}
+        promptBody={promptBody}
         from={from}
         draftAnswer={draftAnswer}
         activeHints={state.activeHints}
@@ -69,13 +81,13 @@ function QuizSessionInner({ questionId, nodeId, questionBody, from, onReset }: Q
               }
             : null
         }
-        suggestedQuestion={state.suggestedQuestion}
-        suggestedQuestionStatus={suggestedQuestionStatus}
+        suggestedConcept={state.suggestedConcept}
+        suggestedConceptStatus={suggestedConceptStatus}
         generatedQuestions={state.generatedQuestions}
         formAction={handleFormAction}
         onDraftAnswerChange={setDraftAnswer}
         onReset={onReset}
-        onAddSuggestedQuestion={handleAddSuggestedQuestion}
+        onAddSuggestedConcept={handleAddSuggestedConcept}
       />
       <StatusBanners
         submitted={state.status === "submitted"}

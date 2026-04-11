@@ -9,8 +9,8 @@ type ReviewLaunchCardProps = {
 export function ReviewLaunchCard({ dueCount, reviewHref, scopeLabel }: ReviewLaunchCardProps) {
   const dueLabel =
     dueCount === 0
-      ? `No questions due in this ${scopeLabel}.`
-      : `${dueCount} question${dueCount === 1 ? "" : "s"} due in this ${scopeLabel}.`;
+      ? `No concepts due in this ${scopeLabel}.`
+      : `${dueCount} concept${dueCount === 1 ? "" : "s"} due in this ${scopeLabel}.`;
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

@@ -1,7 +1,11 @@
+import Link from "next/link";
+
 import { GENERATED_QUESTION_SUGGESTION_LABELS } from "@/lib/quiz/constants";
+import { type QuizGeneratedQuestionLink } from "@/lib/quiz/session-state";
 
 type GeneratedQuestionSuggestionsProps = {
-  questions: string[];
+  questions: QuizGeneratedQuestionLink[];
+  returnTo: string;
 };
 
 const QUESTION_TYPES = [
@@ -12,7 +16,7 @@ const QUESTION_TYPES = [
   { label: "Teach", description: "Explain it simply enough to teach a beginner." },
 ] as const;
 
-export function GeneratedQuestionSuggestions({ questions }: GeneratedQuestionSuggestionsProps) {
+export function GeneratedQuestionSuggestions({ questions, returnTo }: GeneratedQuestionSuggestionsProps) {
   if (questions.length === 0) {
     return null;
   }
@@ -28,7 +32,7 @@ export function GeneratedQuestionSuggestions({ questions }: GeneratedQuestionSug
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Generated Questions</p>
           <p className="mt-2 text-sm text-slate-700">
-            These study questions are now attached to the original question and reused on future submissions.
+            These study questions are now attached to the original concept and reused on future submissions.
           </p>
         </div>
 
@@ -40,9 +44,12 @@ export function GeneratedQuestionSuggestions({ questions }: GeneratedQuestionSug
                 <p className="mt-1 text-sm text-slate-600">{type.description}</p>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <p className="text-sm text-slate-900">{type.question}</p>
-              </div>
+              <Link
+                href={`/quiz/generated/${type.question.id}?from=${encodeURIComponent(returnTo)}`}
+                className="block rounded-lg border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                <p className="text-sm text-slate-900">{type.question.body}</p>
+              </Link>
             </section>
           ))}
         </div>

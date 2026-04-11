@@ -2,8 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createNodeAction } from "@/app/actions/nodes";
-import { CreateQuestionSection } from "@/app/components/create-question-section";
-import { GroupedQuestionList } from "@/app/components/grouped-question-list";
+import { CreateConceptSection } from "@/app/components/create-concept-section";
+import { GroupedConceptList } from "@/app/components/grouped-concept-list";
 import { ReviewLaunchCard } from "@/app/components/review-launch-card";
 import { SubjectTocSidebar } from "@/app/components/subject-toc-sidebar";
 import { auth } from "@/auth";
@@ -54,35 +54,37 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
     nodePathById.set(subtopic.id, `${subject.title} > ${topic.title} > ${subtopic.title}`);
   }
 
-  let questionCount = 0;
+  let conceptCount = 0;
   let dueReviewCount = 0;
   let firstDueQuestionId: string | null = null;
-  let nodeQuestions: Array<{
+  let nodeConcepts: Array<{
     id: string;
     nodeId: string;
-    body: string;
+    title: string;
+    generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; body: string }>;
     reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
   }> = [];
   const now = new Date();
-  const questionDelegate = (
+  const conceptDelegate = (
     prisma as unknown as {
-      question?: {
+      concept?: {
         count: (args: unknown) => Promise<number>;
         findMany: (args: unknown) => Promise<
           Array<{
             id: string;
             nodeId: string;
-            body: string;
+            title: string;
+            generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; body: string }>;
             reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
           }>
         >;
       };
     }
-  ).question;
-  if (questionDelegate) {
+  ).concept;
+  if (conceptDelegate) {
     try {
-      const [count, questions, dueCount, dueQuestions] = await Promise.all([
-        questionDelegate.count({
+      const [count, concepts, dueCount, dueQuestions] = await Promise.all([
+        conceptDelegate.count({
           where: {
             userId: session.user.id,
             nodeId: {
@@ -90,7 +92,7 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
             },
           },
         }),
-        questionDelegate.findMany({
+        conceptDelegate.findMany({
           where: {
             userId: session.user.id,
             nodeId: {
@@ -103,7 +105,14 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
           select: {
             id: true,
             nodeId: true,
-            body: true,
+            title: true,
+            generatedQuestions: {
+              select: {
+                id: true,
+                category: true,
+                body: true,
+              },
+            },
             reviewStates: {
               where: {
                 userId: session.user.id,
@@ -119,13 +128,13 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
         getDueReviewCount(session.user.id, activeNodeId),
         getDueReviewQuestions(session.user.id, 1, activeNodeId),
       ]);
-      questionCount = count;
-      nodeQuestions = questions;
+      conceptCount = count;
+      nodeConcepts = concepts;
       dueReviewCount = dueCount;
       firstDueQuestionId = dueQuestions[0]?.questionId ?? null;
     } catch {
-      questionCount = 0;
-      nodeQuestions = [];
+      conceptCount = 0;
+      nodeConcepts = [];
       dueReviewCount = 0;
       firstDueQuestionId = null;
     }
@@ -162,8 +171,8 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
           {selectedSubtopic ? (
             <section className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Questions</p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900">{questionCount}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Concepts</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">{conceptCount}</p>
               </div>
               <ReviewLaunchCard dueCount={dueReviewCount} reviewHref={reviewHref} scopeLabel="subtopic" />
             </section>
@@ -174,8 +183,8 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
                 <p className="mt-2 text-2xl font-semibold text-slate-900">{topic.children.length}</p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Questions</p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900">{questionCount}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Concepts</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">{conceptCount}</p>
               </div>
               <ReviewLaunchCard dueCount={dueReviewCount} reviewHref={reviewHref} scopeLabel="topic tree" />
             </section>
@@ -209,22 +218,22 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
             </section>
           )}
 
-          <CreateQuestionSection
+          <CreateConceptSection
             nodeId={activeNodeId}
             returnTo={returnToPath}
-            placeholder={selectedSubtopic ? "Write a question for this subtopic" : "Write a question for this topic"}
+            placeholder="Concept title"
           />
 
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">Questions at this {selectedSubtopic ? "subtopic" : "topic"}</h2>
-            <p className="mt-1 text-xs text-slate-500">Showing questions attached to {activeNodeLabel} and its children.</p>
-            <GroupedQuestionList
-              questions={nodeQuestions}
+            <h2 className="text-lg font-semibold text-slate-900">Concepts at this {selectedSubtopic ? "subtopic" : "topic"}</h2>
+            <p className="mt-1 text-xs text-slate-500">Showing concepts attached to {activeNodeLabel} and its children.</p>
+            <GroupedConceptList
+              concepts={nodeConcepts}
               nodePathById={nodePathById}
               fallbackPath={`${subject.title} > ${topic.title}`}
               returnTo={returnToPath}
               now={now}
-              emptyMessage="No questions created for this node yet."
+              emptyMessage="No concepts created for this node yet."
             />
           </section>
         </div>

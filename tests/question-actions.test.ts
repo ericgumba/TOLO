@@ -12,9 +12,8 @@ const {
   }),
   revalidatePathMock: vi.fn(),
   prismaMock: {
-    question: {
+    concept: {
       findFirst: vi.fn(),
-      deleteMany: vi.fn(),
       delete: vi.fn(),
     },
     reviewState: {
@@ -40,7 +39,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: prismaMock,
 }));
 
-import { deleteQuestionAction, resetQuestionReviewStateAction } from "@/app/actions/questions";
+import { deleteConceptAction, resetConceptReviewStateAction } from "@/app/actions/concepts";
 
 function buildFormData(entries: Record<string, string>): FormData {
   const formData = new FormData();
@@ -62,20 +61,19 @@ describe("question settings actions", () => {
         id: userId,
       },
     });
-    prismaMock.question.findFirst.mockResolvedValue(null);
-    prismaMock.question.deleteMany.mockResolvedValue({ count: 0 });
-    prismaMock.question.delete.mockResolvedValue({ id: questionId });
+    prismaMock.concept.findFirst.mockResolvedValue(null);
+    prismaMock.concept.delete.mockResolvedValue({ id: questionId });
     prismaMock.reviewState.upsert.mockResolvedValue({});
     prismaMock.$transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[]));
   });
 
   it("resets review state for a question", async () => {
-    prismaMock.question.findFirst.mockResolvedValue({
+    prismaMock.concept.findFirst.mockResolvedValue({
       id: questionId,
     });
 
     await expect(
-      resetQuestionReviewStateAction(
+      resetConceptReviewStateAction(
         buildFormData({
           questionId,
           returnTo: "/subject/c12345678901234567890125",
@@ -87,9 +85,9 @@ describe("question settings actions", () => {
     expect(prismaMock.reviewState.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          userId_questionId: {
+          userId_conceptId: {
             userId,
-            questionId,
+            conceptId: questionId,
           },
         },
         update: expect.objectContaining({
@@ -107,12 +105,12 @@ describe("question settings actions", () => {
   });
 
   it("deletes a question when confirmed", async () => {
-    prismaMock.question.findFirst.mockResolvedValue({
+    prismaMock.concept.findFirst.mockResolvedValue({
       id: questionId,
     });
 
     await expect(
-      deleteQuestionAction(
+      deleteConceptAction(
         buildFormData({
           questionId,
           returnTo: "/subject/c12345678901234567890125",
@@ -121,26 +119,28 @@ describe("question settings actions", () => {
       ),
     ).rejects.toThrow("REDIRECT:/subject/c12345678901234567890125");
 
-    expect(prismaMock.question.delete).toHaveBeenCalledWith({
+    expect(prismaMock.concept.delete).toHaveBeenCalledWith({
       where: {
         id: questionId,
       },
+      select: {
+        id: true,
+      },
     });
-    expect(prismaMock.question.deleteMany).not.toHaveBeenCalled();
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
   it("rejects delete action when confirmation token is missing", async () => {
     await expect(
-      deleteQuestionAction(
+      deleteConceptAction(
         buildFormData({
           questionId,
           returnTo: "/dashboard",
         }),
       ),
-    ).rejects.toThrow("REDIRECT:/dashboard?error=Invalid%20question%20settings");
+    ).rejects.toThrow("REDIRECT:/dashboard?error=Invalid%20concept%20settings");
 
-    expect(prismaMock.question.findFirst).not.toHaveBeenCalled();
-    expect(prismaMock.question.delete).not.toHaveBeenCalled();
+    expect(prismaMock.concept.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.concept.delete).not.toHaveBeenCalled();
   });
 });

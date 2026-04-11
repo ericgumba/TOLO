@@ -1,14 +1,15 @@
 type QuestionCardProps = {
-  questionBody: string;
+  label?: string;
+  promptBody: string;
   canReset: boolean;
   onReset?: () => void;
 };
 
-export function QuestionCard({ questionBody, canReset, onReset }: QuestionCardProps) {
+export function QuestionCard({ label = "Question", promptBody, canReset, onReset }: QuestionCardProps) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Question</p>
+        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">{label}</p>
         {canReset ? (
           <button
             type="button"
@@ -19,7 +20,7 @@ export function QuestionCard({ questionBody, canReset, onReset }: QuestionCardPr
           </button>
         ) : null}
       </div>
-      <p className="mt-3 text-lg font-semibold text-slate-900">{questionBody}</p>
+      <p className="mt-3 text-lg font-semibold text-slate-900">{promptBody}</p>
     </section>
   );
 }

@@ -6,7 +6,8 @@ import { QuizFormButtons } from "@/app/components/quiz/quiz-form-buttons";
 import { appendSpeechTranscript } from "@/lib/quiz/speech";
 
 type AnswerCardProps = {
-  questionId: string;
+  promptId: string;
+  questionKind?: "main" | "generated";
   from: string;
   answer?: string;
   draftAnswer?: string;
@@ -78,7 +79,8 @@ function getSpeechRecognitionErrorMessage(error?: string): string {
 }
 
 export function AnswerCard({
-  questionId,
+  promptId,
+  questionKind = "main",
   from,
   answer,
   draftAnswer = "",
@@ -200,7 +202,8 @@ export function AnswerCard({
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <form action={formAction} className="flex flex-col gap-3">
-        <input type="hidden" name="questionId" value={questionId} />
+        <input type="hidden" name="questionId" value={promptId} />
+        <input type="hidden" name="questionKind" value={questionKind} />
         <input type="hidden" name="from" value={from} />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Answer</p>
@@ -226,7 +229,7 @@ export function AnswerCard({
           value={draftAnswer}
           onChange={(event) => onDraftAnswerChange?.(event.target.value)}
           className="min-h-36 rounded-md border border-zinc-300 px-3 py-2 text-sm"
-          placeholder="Write your answer here"
+          placeholder={questionKind === "generated" ? "Write your answer here" : "Define this concept in your own words"}
           required
         />
         {isListening ? (

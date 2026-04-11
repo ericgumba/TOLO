@@ -63,22 +63,22 @@ export async function ensureReviewStatesForQuestions(userId: string, subjectId?:
   };
 
   const [questions, existingStates] = await Promise.all([
-    prisma.question.findMany({
+    prisma.concept.findMany({
       where: whereClause,
       select: { id: true },
     }),
     prisma.reviewState.findMany({
       where: { userId },
-      select: { questionId: true },
+      select: { conceptId: true },
     }),
   ]);
 
-  const existingQuestionIds = new Set(existingStates.map((state) => state.questionId));
+  const existingQuestionIds = new Set(existingStates.map((state) => state.conceptId));
   const toCreate = questions
     .filter((question) => !existingQuestionIds.has(question.id))
     .map((question) => ({
       userId,
-      questionId: question.id,
+      conceptId: question.id,
       status: REVIEW_STATUS.NEW,
       intervalDays: 1,
       repetitionCount: 0,
@@ -103,7 +103,7 @@ export async function getDueReviewCount(userId: string, subjectId?: string): Pro
     where: {
       userId,
       nextReviewAt: { lte: new Date() },
-      question: {
+      concept: {
         ...(subjectNodeIds ? { nodeId: { in: subjectNodeIds } } : {}),
       },
     },
@@ -122,7 +122,7 @@ export async function getDueReviewQuestions(
     where: {
       userId,
       nextReviewAt: { lte: new Date() },
-      question: {
+      concept: {
         ...(subjectNodeIds ? { nodeId: { in: subjectNodeIds } } : {}),
       },
     },
@@ -132,10 +132,10 @@ export async function getDueReviewQuestions(
       id: true,
       nextReviewAt: true,
       status: true,
-      question: {
+      concept: {
         select: {
           id: true,
-          body: true,
+          title: true,
           nodeId: true,
         },
       },
@@ -144,9 +144,9 @@ export async function getDueReviewQuestions(
 
   return rows.map((row) => ({
     reviewStateId: row.id,
-    questionId: row.question.id,
-    questionBody: row.question.body,
-    nodeId: row.question.nodeId,
+    questionId: row.concept.id,
+    questionBody: row.concept.title,
+    nodeId: row.concept.nodeId,
     nextReviewAt: row.nextReviewAt,
     status: row.status,
   }));
@@ -158,7 +158,7 @@ export async function upsertReviewStateFromAttempt(input: {
   llmScore: number;
   reviewedAt: Date;
 }): Promise<void> {
-  const question = await prisma.question.findFirst({
+  const question = await prisma.concept.findFirst({
     where: {
       id: input.questionId,
       userId: input.userId,
@@ -174,9 +174,9 @@ export async function upsertReviewStateFromAttempt(input: {
 
   const existingState = await prisma.reviewState.findUnique({
     where: {
-      userId_questionId: {
+      userId_conceptId: {
         userId: input.userId,
-        questionId: input.questionId,
+        conceptId: input.questionId,
       },
     },
     select: {
@@ -195,9 +195,9 @@ export async function upsertReviewStateFromAttempt(input: {
   ) {
     await prisma.reviewState.update({
       where: {
-        userId_questionId: {
+        userId_conceptId: {
           userId: input.userId,
-          questionId: input.questionId,
+          conceptId: input.questionId,
         },
       },
       data: {
@@ -216,14 +216,14 @@ export async function upsertReviewStateFromAttempt(input: {
 
   await prisma.reviewState.upsert({
     where: {
-      userId_questionId: {
+      userId_conceptId: {
         userId: input.userId,
-        questionId: input.questionId,
+        conceptId: input.questionId,
       },
     },
     create: {
       userId: input.userId,
-      questionId: input.questionId,
+      conceptId: input.questionId,
       status: next.status,
       intervalDays: next.intervalDays,
       repetitionCount: next.repetitionCount,

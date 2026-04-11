@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
-    question: {
+    concept: {
       findFirst: vi.fn(),
     },
     reviewState: {
@@ -25,7 +25,7 @@ describe("upsertReviewStateFromAttempt", () => {
   });
 
   it("records last answered at even when the review is not due yet", async () => {
-    prismaMock.question.findFirst.mockResolvedValue({
+    prismaMock.concept.findFirst.mockResolvedValue({
       id: "question-1",
     });
     prismaMock.reviewState.findUnique.mockResolvedValue({
@@ -46,9 +46,9 @@ describe("upsertReviewStateFromAttempt", () => {
     expect(prismaMock.reviewState.upsert).not.toHaveBeenCalled();
     expect(prismaMock.reviewState.update).toHaveBeenCalledWith({
       where: {
-        userId_questionId: {
+        userId_conceptId: {
           userId: "user-1",
-          questionId: "question-1",
+          conceptId: "question-1",
         },
       },
       data: {
@@ -58,7 +58,7 @@ describe("upsertReviewStateFromAttempt", () => {
   });
 
   it("updates the review state when the answer is submitted after the review is due", async () => {
-    prismaMock.question.findFirst.mockResolvedValue({
+    prismaMock.concept.findFirst.mockResolvedValue({
       id: "question-1",
     });
     prismaMock.reviewState.findUnique.mockResolvedValue({
@@ -96,7 +96,7 @@ describe("upsertReviewStateFromAttempt", () => {
   });
 
   it("advances the interval ladder even when the score is low", async () => {
-    prismaMock.question.findFirst.mockResolvedValue({
+    prismaMock.concept.findFirst.mockResolvedValue({
       id: "question-1",
     });
     prismaMock.reviewState.findUnique.mockResolvedValue({

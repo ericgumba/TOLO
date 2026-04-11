@@ -60,20 +60,20 @@ function collectElements(node: ReactNode, predicate: (value: ReactNode) => boole
 
 describe("QuizBody", () => {
   const baseProps = {
-    questionId: "c12345678901234567890124",
-    questionBody: "Base question",
+    promptId: "c12345678901234567890124",
+    promptBody: "Base question",
     from: "/subject/c12345678901234567890125",
     draftAnswer: "",
     activeHints: [] as string[],
     revealedAnswer: null as string | null,
     submission: null,
-    suggestedQuestion: null as string | null,
-    suggestedQuestionStatus: "idle" as const,
-    generatedQuestions: [] as string[],
+    suggestedConcept: null as string | null,
+    suggestedConceptStatus: "idle" as const,
+    generatedQuestions: [] as Array<{ id: string; body: string }>,
     formAction: vi.fn(),
     onDraftAnswerChange: vi.fn(),
     onReset: vi.fn(),
-    onAddSuggestedQuestion: vi.fn(),
+    onAddSuggestedConcept: vi.fn(),
   };
 
   it("shows the editable answer form before submission", () => {
@@ -108,8 +108,12 @@ describe("QuizBody", () => {
           answeredAtIso: "2026-04-01T12:00:00.000Z",
         },
       },
-      suggestedQuestion: "What is a hypervisor?",
-      generatedQuestions: ["Generated question one?", "Generated question two?", "Generated question three?"],
+      suggestedConcept: "hypervisor",
+      generatedQuestions: [
+        { id: "generated-1", body: "Generated question one?" },
+        { id: "generated-2", body: "Generated question two?" },
+        { id: "generated-3", body: "Generated question three?" },
+      ],
     });
 
     const editableAnswerCards = collectElements(
@@ -128,15 +132,18 @@ describe("QuizBody", () => {
     expect(editableAnswerCards).toHaveLength(0);
     expect(suggestionSections).toHaveLength(1);
     expect(suggestionSections[0] && isValidElement(suggestionSections[0]) ? suggestionSections[0].props.questions : []).toEqual([
-      "Generated question one?",
-      "Generated question two?",
-      "Generated question three?",
+      { id: "generated-1", body: "Generated question one?" },
+      { id: "generated-2", body: "Generated question two?" },
+      { id: "generated-3", body: "Generated question three?" },
     ]);
+    expect(
+      suggestionSections[0] && isValidElement(suggestionSections[0]) ? suggestionSections[0].props.returnTo : undefined,
+    ).toBe("/subject/c12345678901234567890125");
     expect(suggestedQuestionCards).toHaveLength(1);
     expect(
       suggestedQuestionCards[0] && isValidElement(suggestedQuestionCards[0])
         ? suggestedQuestionCards[0].props.question
         : undefined,
-    ).toBe("What is a hypervisor?");
+    ).toBe("hypervisor");
   });
 });

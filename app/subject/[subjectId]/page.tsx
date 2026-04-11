@@ -50,7 +50,8 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
     id: string;
     nodeId: string;
     title: string;
-    generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; body: string }>;
+    score: number | null;
+    generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; score: number | null }>;
     reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
   }> = [];
   const now = new Date();
@@ -63,7 +64,8 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
             id: string;
             nodeId: string;
             title: string;
-            generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; body: string }>;
+            score: number | null;
+            generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; score: number | null }>;
             reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
           }>
         >;
@@ -72,7 +74,7 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
   ).concept;
   if (conceptDelegate) {
     try {
-      const [count, concepts, dueCount, dueQuestions] = await Promise.all([
+      const [count, dueCount, dueQuestions] = await Promise.all([
         conceptDelegate.count({
           where: {
             userId: session.user.id,
@@ -81,7 +83,48 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
             },
           },
         }),
-        conceptDelegate.findMany({
+        getDueReviewCount(session.user.id, subject.id),
+        getDueReviewQuestions(session.user.id, 1, subject.id),
+      ]);
+      let concepts: typeof nodeConcepts;
+
+      try {
+        concepts = await conceptDelegate.findMany({
+          where: {
+            userId: session.user.id,
+            nodeId: {
+              in: nodeIds,
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          select: {
+            id: true,
+            nodeId: true,
+            title: true,
+            score: true,
+            generatedQuestions: {
+              select: {
+                id: true,
+                category: true,
+                score: true,
+              },
+            },
+            reviewStates: {
+              where: {
+                userId: session.user.id,
+              },
+              take: 1,
+              select: {
+                lastAnsweredAt: true,
+                nextReviewAt: true,
+              },
+            },
+          },
+        });
+      } catch {
+        const fallbackConcepts = (await conceptDelegate.findMany({
           where: {
             userId: session.user.id,
             nodeId: {
@@ -97,9 +140,7 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
             title: true,
             generatedQuestions: {
               select: {
-                id: true,
                 category: true,
-                body: true,
               },
             },
             reviewStates: {
@@ -113,10 +154,24 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
               },
             },
           },
-        }),
-        getDueReviewCount(session.user.id, subject.id),
-        getDueReviewQuestions(session.user.id, 1, subject.id),
-      ]);
+        })) as Array<{
+          id: string;
+          nodeId: string;
+          title: string;
+          generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH" }>;
+          reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
+        }>;
+
+        concepts = fallbackConcepts.map((concept) => ({
+          ...concept,
+          score: null,
+          generatedQuestions: concept.generatedQuestions.map((generatedQuestion) => ({
+            ...generatedQuestion,
+            score: null,
+          })),
+        }));
+      }
+
       conceptCount = count;
       nodeConcepts = concepts;
       dueReviewCount = dueCount;

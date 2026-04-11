@@ -9,17 +9,18 @@ vi.mock("@/app/actions/concepts", () => ({
 import { ConceptListItem } from "@/app/components/concept-list-item";
 
 describe("ConceptListItem", () => {
-  it("renders attached generated questions with clickable study-lens links", () => {
+  it("renders clickable unlocked study categories after the concept has been defined", () => {
     const html = renderToStaticMarkup(
       <ConceptListItem
         conceptId="question-1"
-        conceptTitle="What is TCP?"
-        generatedQuestions={[
-          { id: "generated-1", body: "Why does TCP need flow control?" },
-          { id: "generated-2", body: "How would TCP behave without acknowledgments?" },
-          { id: "generated-3", body: "When is TCP a better fit than UDP?" },
-          { id: "generated-4", body: "How would you apply TCP to a file transfer scenario?" },
-          { id: "generated-5", body: "How would you teach TCP to a beginner?" },
+        conceptTitle="TCP"
+        conceptScore={91}
+        generatedQuestionScores={[
+          { id: "generated-1", category: "EXPLAIN", score: 88 },
+          { id: "generated-2", category: "ANALYZE", score: 81 },
+          { id: "generated-3", category: "EVALUATE", score: null },
+          { id: "generated-4", category: "APPLY", score: 74 },
+          { id: "generated-5", category: "TEACH", score: 67 },
         ]}
         returnTo="/subject/subject-1"
         lastAnsweredAt={null}
@@ -28,19 +29,46 @@ describe("ConceptListItem", () => {
       />,
     );
 
-    expect(html).toContain("Study Lenses");
+    expect(html).toContain(">TCP<");
+    expect(html).toContain(">Define<");
     expect(html).toContain(">Explain<");
     expect(html).toContain(">Analyze<");
     expect(html).toContain(">Evaluate<");
     expect(html).toContain(">Apply<");
     expect(html).toContain(">Teach<");
-    expect(html).toContain("Why does TCP need flow control?");
-    expect(html).toContain("How would TCP behave without acknowledgments?");
-    expect(html).toContain("When is TCP a better fit than UDP?");
-    expect(html).toContain("How would you apply TCP to a file transfer scenario?");
-    expect(html).toContain("How would you teach TCP to a beginner?");
+    expect(html).toContain(">91<");
+    expect(html).toContain(">88<");
+    expect(html).toContain(">81<");
+    expect(html).toContain(">74<");
+    expect(html).toContain(">67<");
+    expect(html).toContain(">—<");
+    expect(html).not.toContain("Why does TCP need flow control?");
+    expect(html).toContain('href="/quiz/question-1?from=%2Fsubject%2Fsubject-1"');
     expect(html).toContain('href="/quiz/generated/generated-1?from=%2Fsubject%2Fsubject-1"');
+    expect(html).toContain('href="/quiz/generated/generated-5?from=%2Fsubject%2Fsubject-1"');
     expect(html.match(/Last answered at: Never/g)).toHaveLength(1);
     expect(html.match(/Next review: in 1 day/g)).toHaveLength(1);
+  });
+
+  it("does not show category links before the concept has been defined", () => {
+    const html = renderToStaticMarkup(
+      <ConceptListItem
+        conceptId="question-1"
+        conceptTitle="TCP"
+        conceptScore={null}
+        generatedQuestionScores={[
+          { id: "generated-1", category: "EXPLAIN", score: 88 },
+          { id: "generated-2", category: "ANALYZE", score: 81 },
+        ]}
+        returnTo="/subject/subject-1"
+        lastAnsweredAt={null}
+        nextReviewAt={new Date("2026-04-11T10:00:00.000Z")}
+        now={new Date("2026-04-10T10:00:00.000Z")}
+      />,
+    );
+
+    expect(html).not.toContain(">Define<");
+    expect(html).not.toContain(">Explain<");
+    expect(html).not.toContain("/quiz/generated/generated-1");
   });
 });

@@ -148,7 +148,6 @@ describe("runQuizInteractionAction", () => {
     ]);
     prismaMock.generatedQuestion.createMany.mockResolvedValue({ count: 3 });
     prismaMock.generatedQuestion.update.mockResolvedValue({ id: generatedQuestionId, score: 82 });
-    prismaMock.generatedQuestion.updateMany.mockResolvedValue({ count: 0 });
     gradeQuestionAttemptMock.mockResolvedValue({
       ok: true,
       value: {
@@ -244,6 +243,7 @@ describe("runQuizInteractionAction", () => {
         body: true,
       },
     });
+    expect(prismaMock.generatedQuestion.updateMany).not.toHaveBeenCalled();
     expect(upsertReviewStateFromAttemptMock).toHaveBeenCalledTimes(1);
     expect(logLlmUsageMock).toHaveBeenCalledWith(userId, "GRADE");
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard");
@@ -344,7 +344,6 @@ describe("runQuizInteractionAction", () => {
 
   it("still returns feedback when optional score persistence fails for a main-question submit", async () => {
     prismaMock.concept.update.mockRejectedValue(new Error("column \"score\" does not exist"));
-    prismaMock.generatedQuestion.updateMany.mockRejectedValue(new Error("column \"score\" does not exist"));
 
     const state = await runQuizInteractionAction(
       initialQuizInteractionState,

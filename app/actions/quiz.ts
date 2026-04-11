@@ -296,25 +296,14 @@ async function persistQuizScoreIfPossible(input: {
 }) {
   try {
     if (input.questionKind === "main") {
-      await Promise.all([
-        prisma.concept.update({
-          where: {
-            id: input.mainQuestionId,
-          },
-          data: {
-            score: input.score,
-          },
-        }),
-        prisma.generatedQuestion.updateMany({
-          where: {
-            conceptId: input.mainQuestionId,
-          },
-          data: {
-            score: input.score,
-          },
-        }),
-      ]);
-
+      await prisma.concept.update({
+        where: {
+          id: input.mainQuestionId,
+        },
+        data: {
+          score: input.score,
+        },
+      });
       return;
     }
 

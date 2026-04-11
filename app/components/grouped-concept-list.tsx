@@ -4,27 +4,14 @@ export type GroupedConcept = {
   id: string;
   nodeId: string;
   title: string;
+  score: number | null;
   generatedQuestions: Array<{
     id: string;
     category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH";
-    body: string;
+    score: number | null;
   }>;
   reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
 };
-
-const GENERATED_QUESTION_CATEGORY_ORDER = ["EXPLAIN", "ANALYZE", "EVALUATE", "APPLY", "TEACH"] as const;
-
-function sortGeneratedQuestions(
-  generatedQuestions: GroupedConcept["generatedQuestions"],
-): Array<{ id: string; body: string }> {
-  return [...generatedQuestions]
-    .sort(
-      (left, right) =>
-        GENERATED_QUESTION_CATEGORY_ORDER.indexOf(left.category) -
-        GENERATED_QUESTION_CATEGORY_ORDER.indexOf(right.category),
-    )
-    .map((item) => ({ id: item.id, body: item.body }));
-}
 
 type GroupedConceptListProps = {
   concepts: GroupedConcept[];
@@ -67,7 +54,8 @@ export function GroupedConceptList({
                 key={concept.id}
                 conceptId={concept.id}
                 conceptTitle={concept.title}
-                generatedQuestions={sortGeneratedQuestions(concept.generatedQuestions)}
+                conceptScore={concept.score}
+                generatedQuestionScores={concept.generatedQuestions}
                 returnTo={returnTo}
                 lastAnsweredAt={concept.reviewStates[0]?.lastAnsweredAt ?? null}
                 nextReviewAt={concept.reviewStates[0]?.nextReviewAt ?? null}

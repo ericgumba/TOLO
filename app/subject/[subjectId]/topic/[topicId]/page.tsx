@@ -62,7 +62,7 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
     nodeId: string;
     title: string;
     score: number | null;
-    generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; score: number | null }>;
+    generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; body: string; score: number | null }>;
     reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
   }> = [];
   const now = new Date();
@@ -76,7 +76,7 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
             nodeId: string;
             title: string;
             score: number | null;
-            generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; score: number | null }>;
+            generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; body: string; score: number | null }>;
             reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
           }>
         >;
@@ -119,6 +119,7 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
               select: {
                 id: true,
                 category: true,
+                body: true,
                 score: true,
               },
             },
@@ -169,7 +170,7 @@ export default async function TopicPage({ params, searchParams }: TopicPageProps
           id: string;
           nodeId: string;
           title: string;
-          generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH" }>;
+          generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; body: string }>;
           reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
         }>;
 

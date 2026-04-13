@@ -16,11 +16,11 @@ describe("ConceptListItem", () => {
         conceptTitle="TCP"
         conceptScore={91}
         generatedQuestionScores={[
-          { id: "generated-1", category: "EXPLAIN", score: 88 },
-          { id: "generated-2", category: "ANALYZE", score: 81 },
-          { id: "generated-3", category: "EVALUATE", score: null },
-          { id: "generated-4", category: "APPLY", score: 74 },
-          { id: "generated-5", category: "TEACH", score: 67 },
+          { id: "generated-1", category: "EXPLAIN", body: "Explain how TCP guarantees ordered delivery.", score: 88 },
+          { id: "generated-2", category: "ANALYZE", body: "Analyze what changes when TCP loses acknowledgments.", score: 81 },
+          { id: "generated-3", category: "EVALUATE", body: "Evaluate TCP against UDP for video streaming.", score: null },
+          { id: "generated-4", category: "APPLY", body: "Apply TCP to a file transfer scenario.", score: 74 },
+          { id: "generated-5", category: "TEACH", body: "Teach TCP to a beginner using a simple analogy.", score: 67 },
         ]}
         returnTo="/subject/subject-1"
         lastAnsweredAt={null}
@@ -42,7 +42,9 @@ describe("ConceptListItem", () => {
     expect(html).toContain(">74<");
     expect(html).toContain(">67<");
     expect(html).toContain(">—<");
-    expect(html).not.toContain("Why does TCP need flow control?");
+    expect(html).toContain("Define TCP in your own words.");
+    expect(html).toContain("Explain how TCP guarantees ordered delivery.");
+    expect(html).toContain("Teach TCP to a beginner using a simple analogy.");
     expect(html).toContain('href="/quiz/question-1?from=%2Fsubject%2Fsubject-1"');
     expect(html).toContain('href="/quiz/generated/generated-1?from=%2Fsubject%2Fsubject-1"');
     expect(html).toContain('href="/quiz/generated/generated-5?from=%2Fsubject%2Fsubject-1"');
@@ -57,8 +59,8 @@ describe("ConceptListItem", () => {
         conceptTitle="TCP"
         conceptScore={null}
         generatedQuestionScores={[
-          { id: "generated-1", category: "EXPLAIN", score: 88 },
-          { id: "generated-2", category: "ANALYZE", score: 81 },
+          { id: "generated-1", category: "EXPLAIN", body: "Explain TCP.", score: 88 },
+          { id: "generated-2", category: "ANALYZE", body: "Analyze TCP.", score: 81 },
         ]}
         returnTo="/subject/subject-1"
         lastAnsweredAt={null}
@@ -70,5 +72,6 @@ describe("ConceptListItem", () => {
     expect(html).not.toContain(">Define<");
     expect(html).not.toContain(">Explain<");
     expect(html).not.toContain("/quiz/generated/generated-1");
+    expect(html).not.toContain("Define TCP in your own words.");
   });
 });

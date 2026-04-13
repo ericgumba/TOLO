@@ -11,7 +11,7 @@ vi.mock("@/app/components/concept-list-item", () => ({
   }: {
     conceptId: string;
     conceptScore: number | null;
-    generatedQuestionScores?: Array<{ id: string; category: string; score: number | null }>;
+    generatedQuestionScores?: Array<{ id: string; category: string; body: string; score: number | null }>;
     lastAnsweredAt: Date | null;
     nextReviewAt: Date | null;
   }) => (
@@ -101,9 +101,9 @@ describe("GroupedConceptList", () => {
             title: "TCP",
             score: 95,
             generatedQuestions: [
-              { id: "generated-3", category: "TEACH", score: 71 },
-              { id: "generated-1", category: "EXPLAIN", score: 88 },
-              { id: "generated-2", category: "APPLY", score: null },
+              { id: "generated-3", category: "TEACH", body: "Teach TCP.", score: 71 },
+              { id: "generated-1", category: "EXPLAIN", body: "Explain TCP.", score: 88 },
+              { id: "generated-2", category: "APPLY", body: "Apply TCP.", score: null },
             ],
             reviewStates: [
               {

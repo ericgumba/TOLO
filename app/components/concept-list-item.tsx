@@ -29,6 +29,7 @@ type ConceptListItemProps = {
   generatedQuestionScores?: Array<{
     id: string;
     category: GeneratedQuestionCategory;
+    body: string;
     score: number | null;
   }>;
   returnTo: string;
@@ -116,16 +117,23 @@ export function ConceptListItem({
               const href = row.category
                 ? `/quiz/generated/${generatedQuestion?.id}?from=${encodeURIComponent(returnTo)}`
                 : `/quiz/${conceptId}?from=${encodeURIComponent(returnTo)}`;
+              const previewText = row.category
+                ? generatedQuestion?.body ?? ""
+                : `Define ${conceptTitle} in your own words.`;
 
               return (
-                <Link
-                  key={row.label}
-                  href={href}
-                  className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 transition hover:border-slate-300 hover:bg-slate-100"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{row.label}</p>
-                  <p className="text-sm font-semibold text-slate-900">{formatScore(score)}</p>
-                </Link>
+                <div key={row.label} className="group relative">
+                  <Link
+                    href={href}
+                    className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 transition hover:border-slate-300 hover:bg-slate-100"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{row.label}</p>
+                    <p className="text-sm font-semibold text-slate-900">{formatScore(score)}</p>
+                  </Link>
+                  <div className="pointer-events-none absolute left-0 top-full z-10 mt-2 hidden w-72 rounded-md border border-slate-200 bg-slate-900 px-3 py-2 text-xs leading-5 text-white shadow-lg group-hover:block group-focus-within:block">
+                    {previewText}
+                  </div>
+                </div>
               );
             })}
           </div>

@@ -51,7 +51,7 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
     nodeId: string;
     title: string;
     score: number | null;
-    generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; score: number | null }>;
+    generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; body: string; score: number | null }>;
     reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
   }> = [];
   const now = new Date();
@@ -65,7 +65,7 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
             nodeId: string;
             title: string;
             score: number | null;
-            generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; score: number | null }>;
+            generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; body: string; score: number | null }>;
             reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
           }>
         >;
@@ -108,6 +108,7 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
               select: {
                 id: true,
                 category: true,
+                body: true,
                 score: true,
               },
             },
@@ -158,7 +159,7 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
           id: string;
           nodeId: string;
           title: string;
-          generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH" }>;
+          generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; body: string }>;
           reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
         }>;
 

@@ -8,6 +8,7 @@ export type GroupedConcept = {
   generatedQuestions: Array<{
     id: string;
     category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH";
+    body: string;
     score: number | null;
   }>;
   reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;

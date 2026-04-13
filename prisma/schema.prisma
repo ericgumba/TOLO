@@ -69,6 +69,7 @@ model Node {
   parent    Node?     @relation("NodeChildren", fields: [parentId], references: [id], onDelete: Cascade)
   children  Node[]    @relation("NodeChildren")
   concepts  Concept[]
+  tags      Tag[]     @relation("SubjectTags")
 
   @@index([userId])
   @@index([userId, parentId])
@@ -88,10 +89,37 @@ model Concept {
   node               Node              @relation(fields: [nodeId], references: [id], onDelete: Cascade)
   reviewStates       ReviewState[]
   generatedQuestions GeneratedQuestion[]
+  conceptTags        ConceptTag[]
 
   @@index([userId, nodeId])
   @@index([nodeId])
   @@map("Question")
+}
+
+model Tag {
+  id             String       @id @default(cuid())
+  subjectId      String
+  name           String
+  normalizedName String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  subject     Node         @relation("SubjectTags", fields: [subjectId], references: [id], onDelete: Cascade)
+  conceptTags ConceptTag[]
+
+  @@unique([subjectId, normalizedName])
+  @@index([subjectId])
+}
+
+model ConceptTag {
+  conceptId String
+  tagId     String
+
+  concept Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([conceptId, tagId])
+  @@index([tagId])
 }
 
 model GeneratedQuestion {

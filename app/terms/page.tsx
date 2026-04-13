@@ -28,8 +28,8 @@ export default async function TermsPage() {
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-slate-900">2. Description of Service</h2>
         <p className="text-base leading-7 text-slate-700">
-          Tolo is an educational platform that allows users to create and organize topics and questions, answer
-          questions, and receive automated feedback and grading powered by AI.
+          Tolo is an educational platform that allows users to create subjects and concepts, organize concepts with
+          optional tags, answer in free-form, and receive automated feedback and grading powered by AI.
         </p>
       </section>
 

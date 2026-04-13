@@ -19,7 +19,7 @@ function trimGeneratedQuestion(value: string): string {
 function buildQuestionLead(question: string): string {
   const trimmed = collapseWhitespace(question).replace(/[?!.\s]+$/g, "").trim();
 
-  return trimmed.length > 0 ? trimmed : "this topic";
+  return trimmed.length > 0 ? trimmed : "this concept";
 }
 
 export function normalizeQuestionText(value: string): string {

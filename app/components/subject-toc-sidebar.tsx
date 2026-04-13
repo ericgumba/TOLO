@@ -1,18 +1,24 @@
 import { SubjectTocSidebarClient } from "@/app/components/subject-toc-sidebar-client";
 import { type TreeNode } from "@/lib/tree/service";
 
-type SubjectTocSidebarProps = {
-  subject: TreeNode;
-  activeTopicId?: string;
-  activeSubtopicId?: string;
+export type SubjectTagSummary = {
+  id: string;
+  name: string;
+  conceptCount: number;
 };
 
-export function SubjectTocSidebar({ subject, activeTopicId, activeSubtopicId }: SubjectTocSidebarProps) {
+type SubjectTocSidebarProps = {
+  subject: TreeNode;
+  tags: SubjectTagSummary[];
+  activeTag?: string;
+};
+
+export function SubjectTocSidebar({ subject, tags, activeTag }: SubjectTocSidebarProps) {
   return (
     <SubjectTocSidebarClient
       subject={subject}
-      activeTopicId={activeTopicId}
-      activeSubtopicId={activeSubtopicId}
+      tags={tags}
+      activeTag={activeTag}
     />
   );
 }

@@ -34,12 +34,14 @@ export const nodeTocDeleteSchema = nodeDeleteSchema.extend({
 export const conceptCreateSchema = z.object({
   nodeId: z.cuid(),
   title: z.string().trim().min(1).max(160),
+  tags: z.string().trim().max(500).optional(),
   returnTo: z.string().startsWith("/").optional(),
 });
 
 export const generatedNodeConceptAddSchema = z.object({
   nodeId: z.cuid(),
   title: z.string().trim().min(1).max(160),
+  tags: z.array(z.string().trim().min(1).max(80)).max(10).optional(),
   returnTo: z.string().startsWith("/").optional(),
 });
 

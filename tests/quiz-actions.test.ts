@@ -154,7 +154,7 @@ describe("runQuizInteractionAction", () => {
         score: 82,
         feedback: "Good answer.",
         correction: "No correction needed.",
-        suggestedConcept: "thread",
+        relatedConcept: "thread",
         generatedQuestions: ["Generated question one?", "Generated question two?", "Generated question three?"],
       },
     });
@@ -193,7 +193,7 @@ describe("runQuizInteractionAction", () => {
         answeredAtIso: expect.any(String),
       }),
     );
-    expect(state.suggestedConcept).toBe("thread");
+    expect(state.relatedConcept).toBe("thread");
     expect(state.generatedQuestions).toEqual([
       { id: "generated-1", body: "Generated question one?" },
       { id: "generated-2", body: "Generated question two?" },
@@ -302,7 +302,7 @@ describe("runQuizInteractionAction", () => {
     );
     expect(prismaMock.generatedQuestion.createMany).not.toHaveBeenCalled();
     expect(prismaMock.generatedQuestion.findMany).not.toHaveBeenCalled();
-    expect(state.suggestedConcept).toBe("thread");
+    expect(state.relatedConcept).toBe("thread");
     expect(state.generatedQuestions).toEqual([
       { id: "generated-1", body: "Attached explain question?" },
       { id: "generated-2", body: "Attached analyze question?" },
@@ -339,7 +339,7 @@ describe("runQuizInteractionAction", () => {
     expect(upsertReviewStateFromAttemptMock).not.toHaveBeenCalled();
     expect(revalidatePathMock).toHaveBeenCalledWith(`/quiz/generated/${generatedQuestionId}`);
     expect(state.generatedQuestions).toEqual([]);
-    expect(state.suggestedConcept).toBe("thread");
+    expect(state.relatedConcept).toBe("thread");
   });
 
   it("still returns feedback when optional score persistence fails for a main-question submit", async () => {
@@ -396,7 +396,7 @@ describe("runQuizInteractionAction", () => {
 
     expect(state.status).toBe("idle");
     expect(state.feedback).toBeNull();
-    expect(state.suggestedConcept).toBeNull();
+    expect(state.relatedConcept).toBeNull();
     expect(state.generatedQuestions).toEqual([]);
     expect(state.activeHints).toEqual([
       "Start by defining the core unit.",
@@ -436,7 +436,7 @@ describe("runQuizInteractionAction", () => {
 
     expect(state.status).toBe("idle");
     expect(state.feedback).toBeNull();
-    expect(state.suggestedConcept).toBeNull();
+    expect(state.relatedConcept).toBeNull();
     expect(state.generatedQuestions).toEqual([]);
     expect(state.activeHints).toEqual(["Hint 1", "Hint 2", "Hint 3"]);
     expect(state.revealedAnswer).toBe(

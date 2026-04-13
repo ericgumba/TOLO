@@ -19,6 +19,11 @@ export function CreateConceptSection({ nodeId, returnTo, placeholder }: CreateCo
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
           placeholder={placeholder}
         />
+        <input
+          name="tags"
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          placeholder="Tags (comma separated)"
+        />
         <button
           type="submit"
           className="w-fit rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"

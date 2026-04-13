@@ -23,7 +23,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-4 px-6">
       <h1 className="text-3xl font-semibold tracking-tight">Create account</h1>
-      <p className="text-sm text-zinc-600">Start building your subject tree and study workflow.</p>
+      <p className="text-sm text-zinc-600">Start building your subjects, concepts, and study workflow.</p>
 
       {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 

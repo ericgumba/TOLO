@@ -13,94 +13,29 @@ export type TreeNode = {
 
 export async function getTreeForUser(userId: string): Promise<TreeNode[]> {
   const nodes = await prisma.node.findMany({
-    where: { userId },
+    where: { userId, level: NodeLevel.SUBJECT },
     orderBy: [{ createdAt: "asc" }],
   });
 
-  const map = new Map<string, TreeNode>();
-
-  for (const node of nodes) {
-    map.set(node.id, {
-      id: node.id,
-      title: node.title,
-      level: node.level,
-      parentId: node.parentId,
-      children: [],
-    });
-  }
-
-  const roots: TreeNode[] = [];
-
-  for (const node of map.values()) {
-    if (!node.parentId) {
-      roots.push(node);
-      continue;
-    }
-
-    const parent = map.get(node.parentId);
-    if (parent) {
-      parent.children.push(node);
-    }
-  }
-
-  return roots.filter((node) => node.level === NodeLevel.SUBJECT);
+  return nodes.map((node) => ({
+    id: node.id,
+    title: node.title,
+    level: node.level,
+    parentId: node.parentId,
+    children: [],
+  }));
 }
 
 export async function getTreeCountSnapshot(userId: string): Promise<TreeCountSnapshot> {
-  const [subjects, topicsByParent, subtopicsByParent] = await Promise.all([
-    prisma.node.count({
-      where: {
-        userId,
-        level: NodeLevel.SUBJECT,
-      },
-    }),
-    prisma.node.groupBy({
-      by: ["parentId"],
-      where: {
-        userId,
-        level: NodeLevel.TOPIC,
-        parentId: {
-          not: null,
-        },
-      },
-      _count: {
-        _all: true,
-      },
-    }),
-    prisma.node.groupBy({
-      by: ["parentId"],
-      where: {
-        userId,
-        level: NodeLevel.SUBTOPIC,
-        parentId: {
-          not: null,
-        },
-      },
-      _count: {
-        _all: true,
-      },
-    }),
-  ]);
-
-  const topicsBySubjectId: Record<string, number> = {};
-  const subtopicsByTopicId: Record<string, number> = {};
-
-  for (const item of topicsByParent) {
-    if (item.parentId) {
-      topicsBySubjectId[item.parentId] = item._count._all;
-    }
-  }
-
-  for (const item of subtopicsByParent) {
-    if (item.parentId) {
-      subtopicsByTopicId[item.parentId] = item._count._all;
-    }
-  }
+  const subjects = await prisma.node.count({
+    where: {
+      userId,
+      level: NodeLevel.SUBJECT,
+    },
+  });
 
   return {
     subjects,
-    topicsBySubjectId,
-    subtopicsByTopicId,
   };
 }
 
@@ -123,11 +58,12 @@ export async function getUserSubscription(userId: string): Promise<SubscriptionS
 }
 
 export async function getSubjectTreeForUser(subjectId: string, userId: string): Promise<TreeNode | null> {
-  const nodes = await prisma.node.findMany({
+  const subject = await prisma.node.findFirst({
     where: {
+      id: subjectId,
       userId,
+      level: NodeLevel.SUBJECT,
     },
-    orderBy: [{ createdAt: "asc" }],
     select: {
       id: true,
       title: true,
@@ -136,35 +72,17 @@ export async function getSubjectTreeForUser(subjectId: string, userId: string): 
     },
   });
 
-  const map = new Map<string, TreeNode>();
-
-  for (const node of nodes) {
-    map.set(node.id, {
-      id: node.id,
-      title: node.title,
-      level: node.level,
-      parentId: node.parentId,
-      children: [],
-    });
-  }
-
-  for (const node of map.values()) {
-    if (!node.parentId) {
-      continue;
-    }
-
-    const parent = map.get(node.parentId);
-    if (parent) {
-      parent.children.push(node);
-    }
-  }
-
-  const subject = map.get(subjectId);
-  if (!subject || subject.level !== NodeLevel.SUBJECT) {
+  if (!subject) {
     return null;
   }
 
-  return subject;
+  return {
+    id: subject.id,
+    title: subject.title,
+    level: subject.level,
+    parentId: subject.parentId,
+    children: [],
+  };
 }
 
 export async function getTopicTreeForUser(
@@ -172,16 +90,8 @@ export async function getTopicTreeForUser(
   topicId: string,
   userId: string,
 ): Promise<{ subject: TreeNode; topic: TreeNode } | null> {
-  const subject = await getSubjectTreeForUser(subjectId, userId);
-
-  if (!subject) {
-    return null;
-  }
-
-  const topic = subject.children.find((item) => item.id === topicId);
-  if (!topic) {
-    return null;
-  }
-
-  return { subject, topic };
+  void subjectId;
+  void topicId;
+  void userId;
+  return null;
 }

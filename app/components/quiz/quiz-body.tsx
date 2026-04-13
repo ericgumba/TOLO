@@ -4,7 +4,7 @@ import { AnswerCard } from "@/app/components/quiz/answer-card";
 import { FeedbackCard } from "@/app/components/quiz/feedback-card";
 import { GeneratedQuestionSuggestions } from "@/app/components/quiz/generated-question-suggestions";
 import { QuestionCard } from "@/app/components/quiz/question-card";
-import { SuggestedQuestionCard } from "@/app/components/quiz/suggested-question-card";
+import { RelatedConceptCard } from "@/app/components/quiz/related-concept-card";
 import { type QuizGeneratedQuestionLink, type QuizSubmissionFeedback } from "@/lib/quiz/session-state";
 
 type QuizBodyProps = {
@@ -20,13 +20,13 @@ type QuizBodyProps = {
     answer: string;
     feedback: QuizSubmissionFeedback;
   } | null;
-  suggestedConcept: string | null;
-  suggestedConceptStatus: "idle" | "adding" | "added" | "duplicate" | "error";
+  relatedConcept: string | null;
+  relatedConceptStatus: "idle" | "adding" | "added" | "duplicate" | "error";
   generatedQuestions: QuizGeneratedQuestionLink[];
   formAction: (formData: FormData) => void;
   onDraftAnswerChange: (nextValue: string) => void;
   onReset: () => void;
-  onAddSuggestedConcept: () => void | Promise<void>;
+  onAddRelatedConcept: () => void | Promise<void>;
 };
 
 export function QuizBody({
@@ -39,13 +39,13 @@ export function QuizBody({
   activeHints,
   revealedAnswer,
   submission,
-  suggestedConcept,
-  suggestedConceptStatus,
+  relatedConcept,
+  relatedConceptStatus,
   generatedQuestions,
   formAction,
   onDraftAnswerChange,
   onReset,
-  onAddSuggestedConcept,
+  onAddRelatedConcept,
 }: QuizBodyProps) {
   const hasSubmission = submission !== null;
 
@@ -79,16 +79,16 @@ export function QuizBody({
         <GeneratedQuestionSuggestions questions={generatedQuestions} returnTo={from} />
       ) : null}
 
-      {hasSubmission && suggestedConcept ? (
-        <SuggestedQuestionCard
-          question={suggestedConcept}
-          label="Suggested Concept"
+      {hasSubmission && relatedConcept ? (
+        <RelatedConceptCard
+          concept={relatedConcept}
+          label="Related Concept"
           helperText="This is a related concept you can add to the current node for future study."
           actionLabel="Add concept to node"
           duplicateMessage="This concept already exists on the current node."
           errorMessage="Could not add this concept right now. Please retry."
-          status={suggestedConceptStatus}
-          onAdd={onAddSuggestedConcept}
+          status={relatedConceptStatus}
+          onAdd={onAddRelatedConcept}
         />
       ) : null}
 

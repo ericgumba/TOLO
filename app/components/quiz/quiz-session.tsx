@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 
-import { addSuggestedConceptToNodeAction } from "@/app/actions/concepts";
+import { addRelatedConceptToNodeAction } from "@/app/actions/concepts";
 import { runQuizInteractionAction } from "@/app/actions/quiz";
 import { QuizBody } from "@/app/components/quiz/quiz-body";
 import { StatusBanners } from "@/app/components/quiz/status-banners";
@@ -29,37 +29,37 @@ function QuizSessionInner({
 }: QuizSessionProps & { onReset: () => void }) {
   const [state, formAction] = useActionState(runQuizInteractionAction, initialQuizInteractionState);
   const [draftAnswer, setDraftAnswer] = useState("");
-  const [suggestedConceptStatus, setSuggestedConceptStatus] = useState<"idle" | "adding" | "added" | "duplicate" | "error">("idle");
+  const [relatedConceptStatus, setRelatedConceptStatus] = useState<"idle" | "adding" | "added" | "duplicate" | "error">("idle");
 
   function handleFormAction(formData: FormData) {
-    setSuggestedConceptStatus("idle");
+    setRelatedConceptStatus("idle");
     return formAction(formData);
   }
 
-  async function handleAddSuggestedConcept() {
-    if (!state.suggestedConcept) {
+  async function handleAddRelatedConcept() {
+    if (!state.relatedConcept) {
       return;
     }
 
-    setSuggestedConceptStatus("adding");
+    setRelatedConceptStatus("adding");
 
-    const result = await addSuggestedConceptToNodeAction({
+    const result = await addRelatedConceptToNodeAction({
       nodeId,
-      title: state.suggestedConcept,
+      title: state.relatedConcept,
       returnTo: from,
     });
 
     if (result.status === "success") {
-      setSuggestedConceptStatus("added");
+      setRelatedConceptStatus("added");
       return;
     }
 
     if (result.status === "duplicate") {
-      setSuggestedConceptStatus("duplicate");
+      setRelatedConceptStatus("duplicate");
       return;
     }
 
-    setSuggestedConceptStatus("error");
+    setRelatedConceptStatus("error");
   }
 
   return (
@@ -81,13 +81,13 @@ function QuizSessionInner({
               }
             : null
         }
-        suggestedConcept={state.suggestedConcept}
-        suggestedConceptStatus={suggestedConceptStatus}
+        relatedConcept={state.relatedConcept}
+        relatedConceptStatus={relatedConceptStatus}
         generatedQuestions={state.generatedQuestions}
         formAction={handleFormAction}
         onDraftAnswerChange={setDraftAnswer}
         onReset={onReset}
-        onAddSuggestedConcept={handleAddSuggestedConcept}
+        onAddRelatedConcept={handleAddRelatedConcept}
       />
       <StatusBanners
         submitted={state.status === "submitted"}

@@ -1,109 +1,17 @@
-import { NodeLevel } from "@prisma/client";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
 import { DashboardSidebar } from "@/app/components/dashboard-sidebar";
-import { createNodeAction, deleteNodeAction, updateNodeAction } from "@/app/actions/nodes";
+import { createNodeAction } from "@/app/actions/nodes";
 import { auth } from "@/auth";
 import { getDueReviewCount, getDueReviewQuestions } from "@/lib/review/service";
-import { getTreeForUser, type TreeNode } from "@/lib/tree/service";
-import Link from "next/link";
+import { getTreeForUser } from "@/lib/tree/service";
 
 type DashboardPageProps = {
   searchParams: Promise<{
     error?: string;
   }>;
 };
-
-function childLabel(level: NodeLevel) {
-  if (level === NodeLevel.SUBJECT) {
-    return "Add Topic";
-  }
-
-  if (level === NodeLevel.TOPIC) {
-    return "Add Subtopic";
-  }
-
-  return null;
-}
-
-function nodeBadge(level: NodeLevel) {
-  if (level === NodeLevel.SUBJECT) {
-    return "Subject";
-  }
-
-  if (level === NodeLevel.TOPIC) {
-    return "Topic";
-  }
-
-  return "Subtopic";
-}
-
-function TreeItem({ node }: { node: TreeNode }) {
-  const addChildText = childLabel(node.level);
-  const sectionId = node.level === NodeLevel.SUBJECT ? `subject-${node.id}` : undefined;
-
-  return (
-    <li className="rounded-lg border border-zinc-200 p-4 scroll-mt-24" id={sectionId}>
-      <div className="mb-2 flex items-center justify-between">
-        <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-700">
-          {nodeBadge(node.level)}
-        </span>
-      </div>
-
-      <form action={updateNodeAction} className="flex flex-col gap-2">
-        <input type="hidden" name="nodeId" value={node.id} />
-        <input
-          name="title"
-          defaultValue={node.title}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-          placeholder="Title"
-          required
-        />
-        <button
-          type="submit"
-          className="w-fit rounded-md bg-zinc-900 px-3 py-2 text-xs font-medium text-white hover:bg-zinc-700"
-        >
-          Save
-        </button>
-      </form>
-      <form action={deleteNodeAction} className="mt-2">
-        <input type="hidden" name="nodeId" value={node.id} />
-        <button
-          type="submit"
-          className="rounded-md border border-red-300 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-        >
-          Delete
-        </button>
-      </form>
-
-      {addChildText ? (
-        <form action={createNodeAction} className="mt-3 flex flex-col gap-2 rounded-md bg-zinc-50 p-3">
-          <input type="hidden" name="parentId" value={node.id} />
-          <input
-            name="title"
-            required
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-            placeholder={addChildText}
-          />
-          <button
-            type="submit"
-            className="w-fit rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100"
-          >
-            {addChildText}
-          </button>
-        </form>
-      ) : null}
-
-      {node.children.length > 0 ? (
-        <ul className="mt-3 ml-3 flex flex-col gap-2 border-l border-zinc-200 pl-3">
-          {node.children.map((child) => (
-            <TreeItem key={child.id} node={child} />
-          ))}
-        </ul>
-      ) : null}
-    </li>
-  );
-}
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const session = await auth();
@@ -127,7 +35,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-sm text-zinc-600">
-            Manage your subject tree. Structure is strict: subject → topic → subtopic.
+            Manage your subjects and study concepts with optional tags.
           </p>
         </div>
       </header>

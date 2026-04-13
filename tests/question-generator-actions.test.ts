@@ -39,7 +39,7 @@ import {
 describe("generated question mutation actions", () => {
   const userId = "c12345678901234567890123";
   const nodeId = "c12345678901234567890124";
-  const createdQuestionId = "c12345678901234567890126";
+  const createdConceptId = "c12345678901234567890126";
   const returnTo = `/subject/${nodeId}`;
 
   beforeEach(() => {
@@ -55,8 +55,8 @@ describe("generated question mutation actions", () => {
       { title: "process" },
       { title: "thread" },
     ]);
-    prismaMock.node.findFirst.mockResolvedValue({ id: nodeId });
-    prismaMock.concept.create.mockResolvedValue({ id: createdQuestionId });
+    prismaMock.node.findFirst.mockResolvedValue({ id: nodeId, level: "SUBJECT" });
+    prismaMock.concept.create.mockResolvedValue({ id: createdConceptId });
     prismaMock.concept.deleteMany.mockResolvedValue({ count: 1 });
   });
 
@@ -74,6 +74,7 @@ describe("generated question mutation actions", () => {
       },
       select: {
         id: true,
+        level: true,
       },
     });
     expect(prismaMock.concept.create).toHaveBeenCalledWith({
@@ -81,6 +82,7 @@ describe("generated question mutation actions", () => {
         userId,
         nodeId,
         title: "How does a process differ from a thread?",
+        conceptTags: undefined,
         reviewStates: {
           create: expect.objectContaining({
             userId,
@@ -97,7 +99,7 @@ describe("generated question mutation actions", () => {
     });
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard");
     expect(revalidatePathMock).toHaveBeenCalledWith(returnTo);
-    expect(result).toEqual({ status: "success", conceptId: createdQuestionId });
+    expect(result).toEqual({ status: "success", conceptId: createdConceptId });
   });
 
   it("rejects adding a generated question when the node is not owned by the user", async () => {
@@ -111,7 +113,7 @@ describe("generated question mutation actions", () => {
 
     expect(prismaMock.concept.create).not.toHaveBeenCalled();
     expect(result.status).toBe("error");
-    expect(result.error).toContain("node");
+    expect(result.error).toContain("subject");
   });
 
   it("skips adding a duplicate generated question on the same node", async () => {
@@ -132,13 +134,13 @@ describe("generated question mutation actions", () => {
 
   it("removes a generated question that was previously added", async () => {
     const result = await removeGeneratedConceptFromNodeAction({
-      conceptId: createdQuestionId,
+      conceptId: createdConceptId,
       returnTo,
     });
 
     expect(prismaMock.concept.deleteMany).toHaveBeenCalledWith({
       where: {
-        id: createdQuestionId,
+        id: createdConceptId,
         userId,
       },
     });

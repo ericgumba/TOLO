@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { createNodeAction } from "@/app/actions/nodes";
 import { CreateConceptSection } from "@/app/components/create-concept-section";
 import { GroupedConceptList } from "@/app/components/grouped-concept-list";
 import { ReviewLaunchCard } from "@/app/components/review-launch-card";
-import { SubjectTocSidebar } from "@/app/components/subject-toc-sidebar";
+import { SubjectTocSidebar, type SubjectTagSummary } from "@/app/components/subject-toc-sidebar";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getDueReviewCount, getDueReviewQuestions } from "@/lib/review/service";
@@ -15,37 +14,36 @@ type SubjectPageProps = {
   params: Promise<{
     subjectId: string;
   }>;
+  searchParams: Promise<{
+    tag?: string;
+  }>;
 };
 
-export default async function SubjectPage({ params }: SubjectPageProps) {
+export default async function SubjectPage({ params, searchParams }: SubjectPageProps) {
   const session = await auth();
 
   if (!session?.user?.id) {
     redirect("/login");
   }
 
-  const { subjectId } = await params;
+  const [{ subjectId }, query] = await Promise.all([params, searchParams]);
+  const activeTag = typeof query.tag === "string" && query.tag.trim().length > 0 ? query.tag.trim() : undefined;
   const subject = await getSubjectTreeForUser(subjectId, session.user.id);
 
   if (!subject) {
     redirect("/dashboard");
   }
 
-  const topicCount = subject.children.length;
-  const subtopicCount = subject.children.reduce((total, topic) => total + topic.children.length, 0);
-  const nodeIds = [subject.id, ...subject.children.flatMap((topic) => [topic.id, ...topic.children.map((sub) => sub.id)])];
-  const nodePathById = new Map<string, string>();
-  nodePathById.set(subject.id, subject.title);
-  for (const topic of subject.children) {
-    nodePathById.set(topic.id, `${subject.title} > ${topic.title}`);
-    for (const subtopic of topic.children) {
-      nodePathById.set(subtopic.id, `${subject.title} > ${topic.title} > ${subtopic.title}`);
-    }
-  }
-  const returnToPath = `/subject/${subject.id}`;
+  const returnToPath = activeTag ? `/subject/${subject.id}?tag=${encodeURIComponent(activeTag)}` : `/subject/${subject.id}`;
+  const nodePathById = new Map<string, string>([[subject.id, subject.title]]);
+  const now = new Date();
+
   let conceptCount = 0;
+  let totalConceptCount = 0;
+  let tagCount = 0;
   let dueReviewCount = 0;
   let firstDueQuestionId: string | null = null;
+  let tags: SubjectTagSummary[] = [];
   let nodeConcepts: Array<{
     id: string;
     nodeId: string;
@@ -54,135 +52,118 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
     generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; body: string; score: number | null }>;
     reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
   }> = [];
-  const now = new Date();
-  const conceptDelegate = (
-    prisma as unknown as {
-      concept?: {
-        count: (args: unknown) => Promise<number>;
-        findMany: (args: unknown) => Promise<
-          Array<{
-            id: string;
-            nodeId: string;
-            title: string;
-            score: number | null;
-            generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; body: string; score: number | null }>;
-            reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
-          }>
-        >;
-      };
-    }
-  ).concept;
-  if (conceptDelegate) {
-    try {
-      const [count, dueCount, dueQuestions] = await Promise.all([
-        conceptDelegate.count({
-          where: {
-            userId: session.user.id,
-            nodeId: {
-              in: nodeIds,
-            },
-          },
-        }),
-        getDueReviewCount(session.user.id, subject.id),
-        getDueReviewQuestions(session.user.id, 1, subject.id),
-      ]);
-      let concepts: typeof nodeConcepts;
 
-      try {
-        concepts = await conceptDelegate.findMany({
-          where: {
-            userId: session.user.id,
-            nodeId: {
-              in: nodeIds,
+  try {
+    const [count, dueCount, dueQuestions, totalCount, tagRows, concepts] = await Promise.all([
+      prisma.concept.count({
+        where: {
+          userId: session.user.id,
+          nodeId: subject.id,
+          ...(activeTag
+            ? {
+                conceptTags: {
+                  some: {
+                    tag: {
+                      subjectId: subject.id,
+                      name: activeTag,
+                    },
+                  },
+                },
+              }
+            : {}),
+        },
+      }),
+      getDueReviewCount(session.user.id, subject.id),
+      getDueReviewQuestions(session.user.id, 1, subject.id),
+      prisma.concept.count({
+        where: {
+          userId: session.user.id,
+          nodeId: subject.id,
+        },
+      }),
+      prisma.tag.findMany({
+        where: {
+          subjectId: subject.id,
+        },
+        orderBy: {
+          name: "asc",
+        },
+        select: {
+          id: true,
+          name: true,
+          _count: {
+            select: {
+              conceptTags: true,
             },
           },
-          orderBy: {
-            createdAt: "desc",
-          },
-          select: {
-            id: true,
-            nodeId: true,
-            title: true,
-            score: true,
-            generatedQuestions: {
-              select: {
-                id: true,
-                category: true,
-                body: true,
-                score: true,
-              },
-            },
-            reviewStates: {
-              where: {
-                userId: session.user.id,
-              },
-              take: 1,
-              select: {
-                lastAnsweredAt: true,
-                nextReviewAt: true,
-              },
-            },
-          },
-        });
-      } catch {
-        const fallbackConcepts = (await conceptDelegate.findMany({
-          where: {
-            userId: session.user.id,
-            nodeId: {
-              in: nodeIds,
-            },
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          select: {
-            id: true,
-            nodeId: true,
-            title: true,
-            generatedQuestions: {
-              select: {
-                category: true,
-              },
-            },
-            reviewStates: {
-              where: {
-                userId: session.user.id,
-              },
-              take: 1,
-              select: {
-                lastAnsweredAt: true,
-                nextReviewAt: true,
-              },
+        },
+      }),
+      prisma.concept.findMany({
+        where: {
+          userId: session.user.id,
+          nodeId: subject.id,
+          ...(activeTag
+            ? {
+                conceptTags: {
+                  some: {
+                    tag: {
+                      subjectId: subject.id,
+                      name: activeTag,
+                    },
+                  },
+                },
+              }
+            : {}),
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: {
+          id: true,
+          nodeId: true,
+          title: true,
+          score: true,
+          generatedQuestions: {
+            select: {
+              id: true,
+              category: true,
+              body: true,
+              score: true,
             },
           },
-        })) as Array<{
-          id: string;
-          nodeId: string;
-          title: string;
-          generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; body: string }>;
-          reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
-        }>;
+          reviewStates: {
+            where: {
+              userId: session.user.id,
+            },
+            take: 1,
+            select: {
+              lastAnsweredAt: true,
+              nextReviewAt: true,
+            },
+          },
+        },
+      }),
+    ]);
 
-        concepts = fallbackConcepts.map((concept) => ({
-          ...concept,
-          score: null,
-          generatedQuestions: concept.generatedQuestions.map((generatedQuestion) => ({
-            ...generatedQuestion,
-            score: null,
-          })),
-        }));
-      }
-
-      conceptCount = count;
-      nodeConcepts = concepts;
-      dueReviewCount = dueCount;
-      firstDueQuestionId = dueQuestions[0]?.questionId ?? null;
-    } catch {
-      conceptCount = 0;
-      nodeConcepts = [];
-      dueReviewCount = 0;
-      firstDueQuestionId = null;
-    }
+    conceptCount = count;
+    totalConceptCount = totalCount;
+    tagCount = tagRows.length;
+    tags = tagRows.map((tag) => ({
+      id: tag.id,
+      name: tag.name,
+      conceptCount: tag._count.conceptTags,
+    }));
+    nodeConcepts = concepts;
+    dueReviewCount = dueCount;
+    firstDueQuestionId = dueQuestions[0]?.questionId ?? null;
+  } catch {
+    conceptCount = 0;
+    totalConceptCount = 0;
+    tagCount = 0;
+    tags = [];
+    nodeConcepts = [];
+    dueReviewCount = 0;
+    firstDueQuestionId = null;
   }
 
   const reviewHref = firstDueQuestionId
@@ -202,61 +183,45 @@ export default async function SubjectPage({ params }: SubjectPageProps) {
       </header>
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-        <SubjectTocSidebar subject={subject} />
+        <SubjectTocSidebar subject={subject} tags={tags} activeTag={activeTag} />
 
         <div className="flex min-w-0 flex-1 flex-col gap-6">
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Topics</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900">{topicCount}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Subtopics</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900">{subtopicCount}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tags</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-900">{tagCount}</p>
+              <p className="mt-1 text-xs text-slate-500">Optional tags for organizing concepts in this subject.</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Concepts</p>
               <p className="mt-2 text-2xl font-semibold text-slate-900">{conceptCount}</p>
-              <p className="mt-1 text-xs text-slate-500">Concepts across this subject tree.</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {activeTag ? `Filtered by tag "${activeTag}".` : `${totalConceptCount} total concepts in this subject.`}
+              </p>
             </div>
-            <ReviewLaunchCard dueCount={dueReviewCount} reviewHref={reviewHref} scopeLabel="subject tree" />
+            <ReviewLaunchCard dueCount={dueReviewCount} reviewHref={reviewHref} scopeLabel="subject" />
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">Create Topic</h2>
-            <form action={createNodeAction} className="mt-3 flex flex-col gap-2 sm:max-w-xl">
-              <input type="hidden" name="parentId" value={subject.id} />
-              <input type="hidden" name="returnTo" value={returnToPath} />
-              <input
-                required
-                name="title"
-                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                placeholder="Topic title"
-              />
-              <button
-                type="submit"
-                className="w-fit rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
-              >
-                Add Topic
-              </button>
-            </form>
-          </section>
+          {activeTag ? (
+            <section className="rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-3 text-sm text-blue-900">
+              Viewing tag: <span className="font-semibold">{activeTag}</span>
+            </section>
+          ) : null}
 
-          <CreateConceptSection
-            nodeId={subject.id}
-            returnTo={returnToPath}
-            placeholder="Concept title"
-          />
+          <CreateConceptSection nodeId={subject.id} returnTo={returnToPath} placeholder="Concept title" />
 
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">Concepts at this subject</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Concepts in this subject</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Concepts belong directly to the subject and can be organized with optional tags.
+            </p>
             <GroupedConceptList
               concepts={nodeConcepts}
               nodePathById={nodePathById}
               fallbackPath={subject.title}
               returnTo={returnToPath}
               now={now}
-              emptyMessage="No concepts created for this subject yet."
+              emptyMessage={activeTag ? "No concepts found for this tag yet." : "No concepts created for this subject yet."}
             />
           </section>
         </div>

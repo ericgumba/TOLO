@@ -82,9 +82,9 @@ describe("node delete actions", () => {
     getNodeForUserMock.mockResolvedValue({
       id: nodeId,
       userId,
-      title: "Virtualization",
-      level: "TOPIC",
-      parentId: "c12345678901234567890125",
+      title: "Computer Networking",
+      level: "SUBJECT",
+      parentId: null,
     });
     prismaMock.node.delete.mockResolvedValue({ id: nodeId });
   });
@@ -124,11 +124,11 @@ describe("node delete actions", () => {
       deleteNodeFromTocAction(
         buildFormData({
           nodeId,
-          returnTo: "/subject/subject-1/topic/topic-1?subtopic=subtopic-1",
+          returnTo: "/subject/subject-1?tag=networking",
           confirmDelete: "DELETE",
         }),
       ),
-    ).rejects.toThrow("REDIRECT:/subject/subject-1/topic/topic-1?subtopic=subtopic-1");
+    ).rejects.toThrow("REDIRECT:/subject/subject-1?tag=networking");
 
     expect(prismaMock.node.delete).toHaveBeenCalledWith({
       where: {
@@ -136,6 +136,6 @@ describe("node delete actions", () => {
       },
     });
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/subject/subject-1/topic/topic-1?subtopic=subtopic-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/subject/subject-1?tag=networking");
   });
 });

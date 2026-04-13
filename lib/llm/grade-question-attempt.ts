@@ -14,7 +14,7 @@ type GradeResult = {
   score: number;
   feedback: string;
   correction: string;
-  suggestedConcept: string;
+  relatedConcept: string;
   generatedQuestions: string[];
 };
 
@@ -61,7 +61,7 @@ function stripQuestionPrefix(value: string): string {
     .trim();
 }
 
-function sanitizeSuggestedConcept(
+function sanitizeRelatedConcept(
   value: unknown,
   concept: string,
   existingConcepts: string[] = [],
@@ -108,7 +108,7 @@ export async function gradeQuestionAttempt(
       diagnosis?: unknown;
       feedback?: unknown;
       correction?: unknown;
-      suggestedConcept?: unknown;
+      relatedConcept?: unknown;
       generatedQuestions?: unknown;
     }>({
       temperature: 0.2,
@@ -123,7 +123,7 @@ export async function gradeQuestionAttempt(
             "- diagnosisType (one of: \"missing\", \"misunderstood\", \"too_vague\", \"partially_correct\", \"correct\")\n" +
             "- feedback (string)\n" +
             "- correction (string)\n" +
-            "- suggestedConcept (string)\n" +
+            "- relatedConcept (string)\n" +
             (includeGeneratedQuestions
               ? `- generatedQuestions (array of exactly ${GENERATED_QUESTION_SUGGESTION_COUNT} strings)\n\n`
               : "\n") +
@@ -138,8 +138,8 @@ export async function gradeQuestionAttempt(
             "- diagnosisType must reflect the student's main issue.\n" +
             "- feedback must briefly state what is correct and what is missing or unclear (1–3 sentences).\n" +
             "- correction must give a clean, concise, correct definition of the concept.\n" +
-            "- suggestedConcept must be a short related concept title, not a question.\n" +
-            "- suggestedConcept must not repeat the current concept or an existing concept.\n" +
+            "- relatedConcept must be a related concept.\n" +
+            "- relatedConcept must not repeat the current concept or any existing concepts.\n" +
             "- If the answer is correct, diagnosis should point to the next related concept to reinforce.\n\n" +
             (includeGeneratedQuestions
               ? `Always generate exactly ${GENERATED_QUESTION_SUGGESTION_COUNT} distinct future study questions for the same concept.\n` +
@@ -188,14 +188,14 @@ export async function gradeQuestionAttempt(
       };
     }
 
-    const suggestedConcept = sanitizeSuggestedConcept(
-      response.value.suggestedConcept,
+    const relatedConcept = sanitizeRelatedConcept(
+      response.value.relatedConcept,
       concept,
       existingConcepts,
       response.value.diagnosis,
     );
 
-    if (!suggestedConcept) {
+    if (!relatedConcept) {
       return {
         ok: false,
         reason: "invalid_response",
@@ -208,7 +208,7 @@ export async function gradeQuestionAttempt(
         score: clampScore(response.value.score),
         feedback: response.value.feedback.trim(),
         correction: response.value.correction.trim(),
-        suggestedConcept,
+        relatedConcept,
         generatedQuestions: includeGeneratedQuestions
           ? sanitizeGeneratedQuestionSuggestions(response.value.generatedQuestions, concept, existingConcepts)
           : [],

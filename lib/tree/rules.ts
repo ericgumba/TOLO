@@ -1,7 +1,5 @@
 export const NODE_LEVEL = {
   SUBJECT: "SUBJECT",
-  TOPIC: "TOPIC",
-  SUBTOPIC: "SUBTOPIC",
 } as const;
 
 export type NodeLevel = (typeof NODE_LEVEL)[keyof typeof NODE_LEVEL];
@@ -20,8 +18,6 @@ export type ParentNodeForCreate = {
 
 export type TreeCountSnapshot = {
   subjects: number;
-  topicsBySubjectId: Record<string, number>;
-  subtopicsByTopicId: Record<string, number>;
 };
 
 export type CreateNodeDecision = {
@@ -30,35 +26,11 @@ export type CreateNodeDecision = {
 };
 
 export function isAllowedChildLevel(parentLevel: NodeLevel | null, childLevel: NodeLevel): boolean {
-  if (parentLevel === null) {
-    return childLevel === NODE_LEVEL.SUBJECT;
-  }
-
-  if (parentLevel === NODE_LEVEL.SUBJECT) {
-    return childLevel === NODE_LEVEL.TOPIC;
-  }
-
-  if (parentLevel === NODE_LEVEL.TOPIC) {
-    return childLevel === NODE_LEVEL.SUBTOPIC;
-  }
-
-  return false;
+  return parentLevel === null && childLevel === NODE_LEVEL.SUBJECT;
 }
 
 export function resolveChildLevel(parentLevel: NodeLevel | null): NodeLevel | null {
-  if (parentLevel === null) {
-    return NODE_LEVEL.SUBJECT;
-  }
-
-  if (parentLevel === NODE_LEVEL.SUBJECT) {
-    return NODE_LEVEL.TOPIC;
-  }
-
-  if (parentLevel === NODE_LEVEL.TOPIC) {
-    return NODE_LEVEL.SUBTOPIC;
-  }
-
-  return null;
+  return parentLevel === null ? NODE_LEVEL.SUBJECT : null;
 }
 
 export function canCreateNode(
@@ -70,7 +42,7 @@ export function canCreateNode(
   if (!isAllowedChildLevel(parent?.level ?? null, childLevel)) {
     return {
       allowed: false,
-      reason: "Invalid hierarchy: subjects can contain topics, and topics can contain subtopics.",
+      reason: "Invalid hierarchy: only top-level subjects can be created.",
     };
   }
 
@@ -81,24 +53,6 @@ export function canCreateNode(
   if (childLevel === NODE_LEVEL.SUBJECT) {
     if (counts.subjects >= 1) {
       return { allowed: false, reason: "Free plan allows only 1 subject." };
-    }
-
-    return { allowed: true };
-  }
-
-  if (childLevel === NODE_LEVEL.TOPIC && parent) {
-    const current = counts.topicsBySubjectId[parent.id] ?? 0;
-    if (current >= 3) {
-      return { allowed: false, reason: "Free plan allows up to 3 topics per subject." };
-    }
-
-    return { allowed: true };
-  }
-
-  if (childLevel === NODE_LEVEL.SUBTOPIC && parent) {
-    const current = counts.subtopicsByTopicId[parent.id] ?? 0;
-    if (current >= 3) {
-      return { allowed: false, reason: "Free plan allows up to 3 subtopics per topic." };
     }
 
     return { allowed: true };

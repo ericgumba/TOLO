@@ -17,13 +17,13 @@ type Feature = {
 const steps: Step[] = [
   {
     step: "01",
-    title: "Create your study tree",
-    body: "Start with a subject, then split it into topics and subtopics so your material is organized by concept instead of one long page of notes.",
+    title: "Create a subject and add concepts",
+    body: "Start with a subject, then add concepts directly to it so you can begin studying without building a rigid tree first.",
   },
   {
     step: "02",
-    title: "Add questions where they belong",
-    body: "Attach questions directly to the subject, topic, or subtopic you want to study.",
+    title: "Organize with tags if you want",
+    body: "Use optional tags to group related concepts without forcing them into one strict hierarchy.",
   },
   {
     step: "03",
@@ -39,8 +39,8 @@ const steps: Step[] = [
 
 const features: Feature[] = [
   {
-    title: "Hierarchical study structure",
-    body: "Subjects, topics, and subtopics keep your questions grouped by the exact concept they belong to.",
+    title: "Subject + concept workflow",
+    body: "Concepts belong directly to a subject, and optional tags help you organize them without over-structuring your study setup.",
   },
   {
     title: "Free-form quiz practice",
@@ -58,9 +58,9 @@ const features: Feature[] = [
 
 const workflowItems = [
   "Create a subject like Operating Systems.",
-  "Add topics like Virtualization and Processes, then add subtopics where needed.",
-  "Create questions for the exact topic you want to study.",
-  "Open a question, answer it in free-form, and read the AI feedback.",
+  "Add concepts like Process, Thread, and Socket.",
+  "Use tags like Virtualization, Scheduling, or Networking if you want extra organization.",
+  "Open a concept, define it in free-form, and read the AI feedback.",
   "Use hints if you are stuck, then revisit due questions from the dashboard review queue.",
 ];
 
@@ -83,11 +83,11 @@ export default async function Home() {
               Learn with structure, active recall, and AI feedback.
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-              TOLO helps you build a subject tree, attach quiz questions to the right concept, answer them in
+              TOLO helps you create subjects, add concepts, organize them with optional tags, answer them in
               free-form, and review them later with spaced repetition.
             </p>
             <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-              It is built for studying systems, courses, and technical topics where understanding relationships
+              It is built for studying systems, courses, and technical subjects where understanding relationships
               between ideas matters as much as memorizing facts.
             </p>
 
@@ -126,7 +126,7 @@ export default async function Home() {
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">How to use TOLO</p>
           <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">A quick tutorial</h2>
           <p className="mt-3 text-base leading-7 text-slate-600">
-            The workflow is simple: organize the material, create questions, answer honestly, then let the app decide
+            The workflow is simple: organize concepts, answer honestly, then let the app decide
             what deserves more review.
           </p>
         </div>
@@ -163,21 +163,21 @@ export default async function Home() {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
               <h3 className="text-base font-semibold text-slate-900">Good fit</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                CS, math, science, interview prep, and any subject where topics build on each other and you need to
+                CS, math, science, interview prep, and any subject where concepts build on each other and you need to
                 explain reasoning, not just recall a definition.
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
               <h3 className="text-base font-semibold text-slate-900">Why it works</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                The tree keeps context visible, the quizzes force explanation, and the review queue keeps you from
+                Subjects keep context visible, tags keep organization flexible, and the review queue keeps you from
                 forgetting material right after you learned it.
               </p>
             </div>
             <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
               <h3 className="text-base font-semibold text-slate-900">Start here</h3>
               <p className="mt-2 text-sm leading-6 text-slate-700">
-                Create one subject, add 3 to 5 questions, and run through a single quiz session. That is enough to
+                Create one subject, add 3 to 5 concepts, and run through a single quiz session. That is enough to
                 understand the full loop.
               </p>
             </div>

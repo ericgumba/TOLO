@@ -6,10 +6,6 @@ type DashboardSidebarProps = {
   subjects: TreeNode[];
 };
 
-function getTopicCount(subject: TreeNode) {
-  return subject.children.length;
-}
-
 export function DashboardSidebar({ subjects }: DashboardSidebarProps) {
   return (
     <aside className="w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-24 lg:w-72 lg:self-start">
@@ -29,7 +25,7 @@ export function DashboardSidebar({ subjects }: DashboardSidebarProps) {
               href={`/subject/${subject.id}`}
             >
               <div className="text-sm font-semibold text-slate-900">{subject.title}</div>
-              <div className="mt-1 text-xs text-slate-500">{getTopicCount(subject)} topics</div>
+              <div className="mt-1 text-xs text-slate-500">Open subject</div>
             </Link>
           ))}
         </nav>

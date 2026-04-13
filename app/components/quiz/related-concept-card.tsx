@@ -1,7 +1,7 @@
 "use client";
 
-type SuggestedQuestionCardProps = {
-  question: string;
+type RelatedConceptCardProps = {
+  concept: string;
   label?: string;
   helperText?: string;
   actionLabel?: string;
@@ -11,16 +11,16 @@ type SuggestedQuestionCardProps = {
   onAdd: () => void | Promise<void>;
 };
 
-export function SuggestedQuestionCard({
-  question,
-  label = "Suggested Question",
-  helperText = "This is a basic related question you can add to the current node as a real question.",
-  actionLabel = "Add to node",
-  duplicateMessage = "This question already exists on the current node.",
-  errorMessage = "Could not add this question right now. Please retry.",
+export function RelatedConceptCard({
+  concept,
+  label = "Related Concept",
+  helperText = "This is a related concept you can add to the current node for future study.",
+  actionLabel = "Add concept to node",
+  duplicateMessage = "This concept already exists on the current node.",
+  errorMessage = "Could not add this concept right now. Please retry.",
   status,
   onAdd,
-}: SuggestedQuestionCardProps) {
+}: RelatedConceptCardProps) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-4">
@@ -30,7 +30,7 @@ export function SuggestedQuestionCard({
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm text-slate-900">{question}</p>
+          <p className="text-sm text-slate-900">{concept}</p>
         </div>
 
         <div className="flex flex-col gap-2">

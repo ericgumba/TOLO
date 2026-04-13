@@ -1,5 +1,6 @@
 "use server";
 
+import { NodeLevel } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -52,12 +53,66 @@ function normalizeReturnTo(returnTo?: string): string {
   return returnTo?.startsWith("/") ? returnTo : "/dashboard";
 }
 
-async function createConceptForUser(userId: string, nodeId: string, title: string) {
+function normalizeTagName(tag: string): string {
+  return tag.trim().replace(/\s+/g, " ");
+}
+
+function parseTagInput(input?: string): Array<{ name: string; normalizedName: string }> {
+  if (!input) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+
+  return input
+    .split(",")
+    .map(normalizeTagName)
+    .filter((tag) => tag.length > 0)
+    .map((tag) => ({
+      name: tag,
+      normalizedName: tag.toLowerCase(),
+    }))
+    .filter((tag) => {
+      if (seen.has(tag.normalizedName)) {
+        return false;
+      }
+
+      seen.add(tag.normalizedName);
+      return true;
+    })
+    .slice(0, 10);
+}
+
+async function createConceptForUser(userId: string, subjectId: string, title: string, tags: string[] = []) {
+  const normalizedTags = parseTagInput(tags.join(","));
+
   return prisma.concept.create({
     data: {
       userId,
-      nodeId,
+      nodeId: subjectId,
       title,
+      conceptTags:
+        normalizedTags.length > 0
+          ? {
+              create: normalizedTags.map((tag) => ({
+                tag: {
+                  connectOrCreate: {
+                    where: {
+                      subjectId_normalizedName: {
+                        subjectId,
+                        normalizedName: tag.normalizedName,
+                      },
+                    },
+                    create: {
+                      subjectId,
+                      name: tag.name,
+                      normalizedName: tag.normalizedName,
+                    },
+                  },
+                },
+              })),
+            }
+          : undefined,
       reviewStates: {
         create: {
           userId,
@@ -80,6 +135,7 @@ export async function createConceptAction(formData: FormData) {
   const parsed = conceptCreateSchema.safeParse({
     nodeId: formData.get("nodeId"),
     title: formData.get("title"),
+    tags: formData.get("tags") || undefined,
     returnTo: formData.get("returnTo") || undefined,
   });
 
@@ -94,14 +150,20 @@ export async function createConceptAction(formData: FormData) {
     },
     select: {
       id: true,
+      level: true,
     },
   });
 
-  if (!node) {
+  if (!node || node.level !== NodeLevel.SUBJECT) {
     redirect("/dashboard?error=Node%20not%20found");
   }
 
-  await createConceptForUser(userId, parsed.data.nodeId, parsed.data.title);
+  await createConceptForUser(
+    userId,
+    parsed.data.nodeId,
+    parsed.data.title,
+    parseTagInput(parsed.data.tags).map((tag) => tag.name),
+  );
 
   revalidatePath("/dashboard");
   if (parsed.data.returnTo) {
@@ -115,14 +177,16 @@ export async function createConceptAction(formData: FormData) {
 export async function addGeneratedConceptToNodeAction(input: {
   nodeId: string;
   title: string;
+  tags?: string[];
   returnTo?: string;
 }): Promise<AddGeneratedConceptResult> {
   return addConceptToNodeAction(input);
 }
 
-export async function addSuggestedConceptToNodeAction(input: {
+export async function addRelatedConceptToNodeAction(input: {
   nodeId: string;
   title: string;
+  tags?: string[];
   returnTo?: string;
 }): Promise<AddGeneratedConceptResult> {
   return addConceptToNodeAction(input);
@@ -131,6 +195,7 @@ export async function addSuggestedConceptToNodeAction(input: {
 async function addConceptToNodeAction(input: {
   nodeId: string;
   title: string;
+  tags?: string[];
   returnTo?: string;
 }): Promise<AddGeneratedConceptResult> {
   const userId = await requireAuthUserId();
@@ -152,13 +217,14 @@ async function addConceptToNodeAction(input: {
     },
     select: {
       id: true,
+      level: true,
     },
   });
 
-  if (!node) {
+  if (!node || node.level !== NodeLevel.SUBJECT) {
     return {
       status: "error",
-      error: "Selected node not found.",
+      error: "Selected subject not found.",
     };
   }
 
@@ -187,7 +253,12 @@ async function addConceptToNodeAction(input: {
   }
 
   try {
-    const createdConcept = await createConceptForUser(userId, parsed.data.nodeId, parsed.data.title);
+    const createdConcept = await createConceptForUser(
+      userId,
+      parsed.data.nodeId,
+      parsed.data.title,
+      parsed.data.tags ?? [],
+    );
 
     revalidatePath("/dashboard");
     revalidatePath(returnTo);

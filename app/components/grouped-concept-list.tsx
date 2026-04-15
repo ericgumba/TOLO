@@ -5,6 +5,7 @@ export type GroupedConcept = {
   nodeId: string;
   title: string;
   score: number | null;
+  tags: string[];
   generatedQuestions: Array<{
     id: string;
     category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH";
@@ -35,6 +36,7 @@ export function GroupedConceptList({
     return <p className="mt-3 text-sm text-slate-500">{emptyMessage}</p>;
   }
 
+  const canCompare = concepts.length > 1;
   const groupedConcepts = new Map<string, GroupedConcept[]>();
 
   for (const concept of concepts) {
@@ -55,7 +57,10 @@ export function GroupedConceptList({
                 key={concept.id}
                 conceptId={concept.id}
                 conceptTitle={concept.title}
+                canCompare={canCompare}
+                compareHref={canCompare ? `/compare/${concept.id}?from=${encodeURIComponent(returnTo)}` : undefined}
                 conceptScore={concept.score}
+                tags={concept.tags}
                 generatedQuestionScores={concept.generatedQuestions}
                 returnTo={returnTo}
                 lastAnsweredAt={concept.reviewStates[0]?.lastAnsweredAt ?? null}

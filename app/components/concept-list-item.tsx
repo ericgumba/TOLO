@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { deleteConceptAction, resetConceptReviewStateAction } from "@/app/actions/concepts";
+import { addTagToConceptAction, deleteConceptAction, resetConceptReviewStateAction } from "@/app/actions/concepts";
 import { formatLastAnsweredAt, formatNextReview } from "@/lib/review/display";
 
 type GeneratedQuestionCategory = "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH";
@@ -25,7 +25,10 @@ type ConceptListItemProps = {
   conceptId: string;
   conceptTitle: string;
   conceptPath?: string;
+  canCompare: boolean;
+  compareHref?: string;
   conceptScore: number | null;
+  tags?: string[];
   generatedQuestionScores?: Array<{
     id: string;
     category: GeneratedQuestionCategory;
@@ -42,7 +45,10 @@ export function ConceptListItem({
   conceptId,
   conceptTitle,
   conceptPath,
+  canCompare,
+  compareHref,
   conceptScore,
+  tags = [],
   generatedQuestionScores = [],
   returnTo,
   lastAnsweredAt,
@@ -65,47 +71,104 @@ export function ConceptListItem({
           className="min-w-0 flex-1 rounded-md transition hover:text-slate-900"
         >
           <p>{conceptTitle}</p>
+          {tags.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
           {conceptPath ? <p className="mt-1 text-xs text-slate-500">Path: {conceptPath}</p> : null}
           <p className="mt-1 text-xs text-slate-500">Last answered at: {formatLastAnsweredAt(lastAnsweredAt)}</p>
           <p className="text-xs text-slate-500">Next review: {formatNextReview(nextReviewAt, now)}</p>
         </Link>
 
-        <details className="relative shrink-0">
-          <summary className="list-none cursor-pointer rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-zinc-100">
-            Settings
-          </summary>
-          <div className="absolute right-0 z-10 mt-2 w-52 rounded-md border border-zinc-200 bg-white p-2 shadow-lg">
-            <form action={resetConceptReviewStateAction} className="mb-1">
-              <input type="hidden" name="questionId" value={conceptId} />
-              <input type="hidden" name="returnTo" value={returnTo} />
-              <button
-                type="submit"
-                className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-zinc-100"
-              >
-                Reset Review State
-              </button>
-            </form>
-            <details className="rounded-md">
-              <summary className="cursor-pointer rounded-md px-2 py-1.5 text-xs text-red-700 hover:bg-red-50">
-                Delete Concept
-              </summary>
-              <div className="mt-1 rounded-md border border-red-200 bg-red-50 p-2">
-                <p className="text-[11px] leading-4 text-red-700">This action cannot be undone.</p>
-                <form action={deleteConceptAction} className="mt-2">
-                  <input type="hidden" name="questionId" value={conceptId} />
-                  <input type="hidden" name="returnTo" value={returnTo} />
-                  <input type="hidden" name="confirmDelete" value="DELETE" />
-                  <button
-                    type="submit"
-                    className="w-full rounded-md border border-red-300 bg-white px-2 py-1.5 text-left text-xs font-medium text-red-700 hover:bg-red-100"
-                  >
-                    Confirm Delete
-                  </button>
-                </form>
-              </div>
-            </details>
-          </div>
-        </details>
+        <div className="flex shrink-0 items-start gap-2">
+          {canCompare && compareHref ? (
+            <Link
+              href={compareHref}
+              title="Compare this concept with another concept from the same subject."
+              className="rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-zinc-100"
+            >
+              Compare
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              title="Add at least one more concept to enable compare."
+              className="cursor-not-allowed rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-400"
+            >
+              Compare
+            </button>
+          )}
+
+          <details className="relative">
+            <summary className="list-none cursor-pointer rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-zinc-100">
+              Settings
+            </summary>
+            <div className="absolute right-0 z-10 mt-2 w-52 rounded-md border border-zinc-200 bg-white p-2 shadow-lg">
+              <form action={resetConceptReviewStateAction} className="mb-1">
+                <input type="hidden" name="questionId" value={conceptId} />
+                <input type="hidden" name="returnTo" value={returnTo} />
+                <button
+                  type="submit"
+                  className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-zinc-100"
+                >
+                  Reset Review State
+                </button>
+              </form>
+              <details className="mb-1 rounded-md">
+                <summary className="cursor-pointer rounded-md px-2 py-1.5 text-xs text-slate-700 hover:bg-zinc-100">
+                  Add Tag
+                </summary>
+                <div className="mt-1 rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <form action={addTagToConceptAction} className="flex flex-col gap-2">
+                    <input type="hidden" name="conceptId" value={conceptId} />
+                    <input type="hidden" name="returnTo" value={returnTo} />
+                    <input
+                      type="text"
+                      name="tagName"
+                      className="rounded-md border border-zinc-300 px-2 py-1.5 text-xs text-slate-900"
+                      placeholder="Tag name"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-md bg-zinc-900 px-2 py-1.5 text-left text-xs font-medium text-white hover:bg-zinc-700"
+                    >
+                      Save Tag
+                    </button>
+                  </form>
+                </div>
+              </details>
+              <details className="rounded-md">
+                <summary className="cursor-pointer rounded-md px-2 py-1.5 text-xs text-red-700 hover:bg-red-50">
+                  Delete Concept
+                </summary>
+                <div className="mt-1 rounded-md border border-red-200 bg-red-50 p-2">
+                  <p className="text-[11px] leading-4 text-red-700">This action cannot be undone.</p>
+                  <form action={deleteConceptAction} className="mt-2">
+                    <input type="hidden" name="questionId" value={conceptId} />
+                    <input type="hidden" name="returnTo" value={returnTo} />
+                    <input type="hidden" name="confirmDelete" value="DELETE" />
+                    <button
+                      type="submit"
+                      className="w-full rounded-md border border-red-300 bg-white px-2 py-1.5 text-left text-xs font-medium text-red-700 hover:bg-red-100"
+                    >
+                      Confirm Delete
+                    </button>
+                  </form>
+                </div>
+              </details>
+            </div>
+          </details>
+        </div>
       </div>
 
       {unlockedRows.length > 0 ? (

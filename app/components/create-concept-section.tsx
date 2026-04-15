@@ -22,7 +22,7 @@ export function CreateConceptSection({ nodeId, returnTo, placeholder }: CreateCo
         <input
           name="tags"
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-          placeholder="Tags (comma separated)"
+          placeholder="optional: tags (comma separated)"
         />
         <button
           type="submit"

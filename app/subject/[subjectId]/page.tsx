@@ -49,6 +49,7 @@ export default async function SubjectPage({ params, searchParams }: SubjectPageP
     nodeId: string;
     title: string;
     score: number | null;
+    tags: string[];
     generatedQuestions: Array<{ id: string; category: "EXPLAIN" | "ANALYZE" | "EVALUATE" | "APPLY" | "TEACH"; body: string; score: number | null }>;
     reviewStates: Array<{ lastAnsweredAt: Date | null; nextReviewAt: Date }>;
   }> = [];
@@ -123,6 +124,15 @@ export default async function SubjectPage({ params, searchParams }: SubjectPageP
           nodeId: true,
           title: true,
           score: true,
+          conceptTags: {
+            select: {
+              tag: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
           generatedQuestions: {
             select: {
               id: true,
@@ -153,7 +163,10 @@ export default async function SubjectPage({ params, searchParams }: SubjectPageP
       name: tag.name,
       conceptCount: tag._count.conceptTags,
     }));
-    nodeConcepts = concepts;
+    nodeConcepts = concepts.map((concept) => ({
+      ...concept,
+      tags: concept.conceptTags.map((conceptTag) => conceptTag.tag.name),
+    }));
     dueReviewCount = dueCount;
     firstDueQuestionId = dueQuestions[0]?.questionId ?? null;
   } catch {

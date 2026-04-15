@@ -57,6 +57,12 @@ export const questionDeleteSchema = questionSettingsSchema.extend({
   confirmDelete: z.literal("DELETE"),
 });
 
+export const conceptTagAddSchema = z.object({
+  conceptId: z.cuid(),
+  tagName: z.string().trim().min(1).max(80),
+  returnTo: z.string().startsWith("/").optional(),
+});
+
 export const quizInteractionSchema = z.object({
   questionId: z.cuid(),
   questionKind: z.enum(["main", "generated"]).optional(),
@@ -64,4 +70,16 @@ export const quizInteractionSchema = z.object({
   answer: z.string().max(4000).optional(),
   from: z.string().startsWith("/").optional(),
   mode: z.string().trim().min(1).max(32).optional(),
+});
+
+export const compareInteractionSchema = z.object({
+  sourceConceptId: z.cuid(),
+  targetConceptId: z.cuid(),
+  prompt: z.string().trim().min(1).max(1000),
+  answer: z.string().trim().min(1).max(4000),
+  from: z.string().startsWith("/").optional(),
+});
+
+export const compareSessionStartSchema = z.object({
+  sourceConceptId: z.cuid(),
 });

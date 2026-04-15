@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/actions/concepts", () => ({
+  addTagToConceptAction: vi.fn(),
   deleteConceptAction: vi.fn(),
   resetConceptReviewStateAction: vi.fn(),
 }));
@@ -14,7 +15,10 @@ describe("ConceptListItem", () => {
       <ConceptListItem
         conceptId="question-1"
         conceptTitle="TCP"
+        canCompare
+        compareHref="/compare/question-1?from=%2Fsubject%2Fsubject-1"
         conceptScore={91}
+        tags={["Networking", "Transport"]}
         generatedQuestionScores={[
           { id: "generated-1", category: "EXPLAIN", body: "Explain how TCP guarantees ordered delivery.", score: 88 },
           { id: "generated-2", category: "ANALYZE", body: "Analyze what changes when TCP loses acknowledgments.", score: 81 },
@@ -30,6 +34,13 @@ describe("ConceptListItem", () => {
     );
 
     expect(html).toContain(">TCP<");
+    expect(html).toContain(">Compare<");
+    expect(html).toContain('href="/compare/question-1?from=%2Fsubject%2Fsubject-1"');
+    expect(html).toContain(">Networking<");
+    expect(html).toContain(">Transport<");
+    expect(html).toContain(">Add Tag<");
+    expect(html).toContain('name="tagName"');
+    expect(html).toContain('value="question-1"');
     expect(html).toContain(">Define<");
     expect(html).toContain(">Explain<");
     expect(html).toContain(">Analyze<");
@@ -57,7 +68,10 @@ describe("ConceptListItem", () => {
       <ConceptListItem
         conceptId="question-1"
         conceptTitle="TCP"
+        canCompare={false}
+        compareHref={undefined}
         conceptScore={null}
+        tags={[]}
         generatedQuestionScores={[
           { id: "generated-1", category: "EXPLAIN", body: "Explain TCP.", score: 88 },
           { id: "generated-2", category: "ANALYZE", body: "Analyze TCP.", score: 81 },
@@ -71,6 +85,8 @@ describe("ConceptListItem", () => {
 
     expect(html).not.toContain(">Define<");
     expect(html).not.toContain(">Explain<");
+    expect(html).toContain(">Compare<");
+    expect(html).toContain("disabled");
     expect(html).not.toContain("/quiz/generated/generated-1");
     expect(html).not.toContain("Define TCP in your own words.");
   });

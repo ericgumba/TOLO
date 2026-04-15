@@ -40,6 +40,15 @@ enum GeneratedQuestionCategory {
   TEACH
 }
 
+enum CompareInteractionCategory {
+  COMPARE
+  PART_WHOLE
+  DEPENDENCY
+  ANALOGY
+  TRADEOFF
+  MECHANISM_LINK
+}
+
 model User {
   id                 String             @id @default(cuid())
   email              String             @unique
@@ -53,6 +62,7 @@ model User {
   concepts       Concept[]
   reviewStates   ReviewState[]
   llmUsageEvents LlmUsageEvent[]
+  compareAttempts ConceptRelationshipAttempt[]
 }
 
 model Node {
@@ -70,6 +80,7 @@ model Node {
   children  Node[]    @relation("NodeChildren")
   concepts  Concept[]
   tags      Tag[]     @relation("SubjectTags")
+  conceptRelationships ConceptRelationship[]
 
   @@index([userId])
   @@index([userId, parentId])
@@ -90,10 +101,11 @@ model Concept {
   reviewStates       ReviewState[]
   generatedQuestions GeneratedQuestion[]
   conceptTags        ConceptTag[]
+  relationshipsAsFirst  ConceptRelationship[]      @relation("ConceptRelationshipFirst")
+  relationshipsAsSecond ConceptRelationship[]      @relation("ConceptRelationshipSecond")
 
   @@index([userId, nodeId])
   @@index([nodeId])
-  @@map("Question")
 }
 
 model Tag {
@@ -135,6 +147,68 @@ model GeneratedQuestion {
 
   @@unique([conceptId, category], map: "GeneratedQuestion_questionId_category_key")
   @@index([conceptId], map: "GeneratedQuestion_questionId_idx")
+}
+
+model ConceptRelationship {
+  id         String   @id @default(cuid())
+  subjectId   String
+  conceptAId  String
+  conceptBId  String
+  pairKey     String   @unique
+  rationale   String?
+  confidence  Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subject  Node    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  conceptA Concept @relation("ConceptRelationshipFirst", fields: [conceptAId], references: [id], onDelete: Cascade)
+  conceptB Concept @relation("ConceptRelationshipSecond", fields: [conceptBId], references: [id], onDelete: Cascade)
+  prompts  ConceptRelationshipPrompt[]
+  attempts ConceptRelationshipAttempt[]
+
+  @@index([subjectId])
+  @@index([conceptAId])
+  @@index([conceptBId])
+  @@index([subjectId, conceptAId])
+  @@index([subjectId, conceptBId])
+}
+
+model ConceptRelationshipPrompt {
+  id             String                     @id @default(cuid())
+  relationshipId String
+  category       CompareInteractionCategory
+  prompt         String
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  relationship ConceptRelationship       @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
+  attempts     ConceptRelationshipAttempt[]
+
+  @@unique([relationshipId, category])
+  @@index([relationshipId])
+}
+
+model ConceptRelationshipAttempt {
+  id             String                     @id @default(cuid())
+  userId         String
+  relationshipId String
+  promptId       String?
+  category       CompareInteractionCategory
+  prompt         String
+  userAnswer     String
+  llmScore       Int
+  llmFeedback    String
+  llmCorrection  String
+  answeredAt     DateTime                   @default(now())
+  createdAt      DateTime                   @default(now())
+
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relationship ConceptRelationship      @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
+  promptRef    ConceptRelationshipPrompt? @relation(fields: [promptId], references: [id], onDelete: SetNull)
+
+  @@index([userId, answeredAt])
+  @@index([relationshipId, answeredAt])
+  @@index([promptId])
 }
 
 model ReviewState {

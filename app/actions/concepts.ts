@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import {
+  conceptTagAddSchema,
   conceptCreateSchema,
   generatedNodeConceptAddSchema,
   questionDeleteSchema,
@@ -322,6 +323,80 @@ export async function removeGeneratedConceptFromNodeAction(input: {
   return {
     status: "success",
   };
+}
+
+export async function addTagToConceptAction(formData: FormData) {
+  const userId = await requireAuthUserId();
+
+  const parsed = conceptTagAddSchema.safeParse({
+    conceptId: formData.get("conceptId"),
+    tagName: formData.get("tagName"),
+    returnTo: formData.get("returnTo") || undefined,
+  });
+
+  if (!parsed.success) {
+    redirect("/dashboard?error=Invalid%20tag%20input");
+  }
+
+  const concept = await prisma.concept.findFirst({
+    where: {
+      id: parsed.data.conceptId,
+      userId,
+    },
+    select: {
+      id: true,
+      nodeId: true,
+    },
+  });
+
+  if (!concept) {
+    redirect("/dashboard?error=Concept%20not%20found");
+  }
+
+  const normalizedTag = parseTagInput(parsed.data.tagName)[0];
+
+  if (!normalizedTag) {
+    redirect("/dashboard?error=Invalid%20tag%20input");
+  }
+
+  const tag = await prisma.tag.upsert({
+    where: {
+      subjectId_normalizedName: {
+        subjectId: concept.nodeId,
+        normalizedName: normalizedTag.normalizedName,
+      },
+    },
+    update: {
+      name: normalizedTag.name,
+    },
+    create: {
+      subjectId: concept.nodeId,
+      name: normalizedTag.name,
+      normalizedName: normalizedTag.normalizedName,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  await prisma.conceptTag.upsert({
+    where: {
+      conceptId_tagId: {
+        conceptId: concept.id,
+        tagId: tag.id,
+      },
+    },
+    update: {},
+    create: {
+      conceptId: concept.id,
+      tagId: tag.id,
+    },
+  });
+
+  const returnTo = normalizeReturnTo(parsed.data.returnTo);
+  revalidatePath("/dashboard");
+  revalidatePath(returnTo);
+  redirect(returnTo);
 }
 
 export async function resetConceptReviewStateAction(formData: FormData) {

@@ -75,7 +75,9 @@ export const quizInteractionSchema = z.object({
 export const compareInteractionSchema = z.object({
   sourceConceptId: z.cuid(),
   targetConceptId: z.cuid(),
-  prompt: z.string().trim().min(1).max(1000),
+  relationshipId: z.cuid(),
+  promptId: z.cuid(),
+  category: z.enum(["COMPARE", "PART_WHOLE", "DEPENDENCY", "ANALOGY", "TRADEOFF", "MECHANISM_LINK"]),
   answer: z.string().trim().min(1).max(4000),
   from: z.string().startsWith("/").optional(),
 });

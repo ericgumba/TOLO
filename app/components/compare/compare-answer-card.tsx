@@ -3,7 +3,9 @@
 type CompareAnswerCardProps = {
   sourceConceptId: string;
   targetConceptId: string;
-  prompt: string;
+  relationshipId: string;
+  promptId: string;
+  category: "COMPARE" | "PART_WHOLE" | "DEPENDENCY" | "ANALOGY" | "TRADEOFF" | "MECHANISM_LINK";
   from: string;
   draftAnswer?: string;
   answer?: string;
@@ -15,7 +17,9 @@ type CompareAnswerCardProps = {
 export function CompareAnswerCard({
   sourceConceptId,
   targetConceptId,
-  prompt,
+  relationshipId,
+  promptId,
+  category,
   from,
   draftAnswer = "",
   answer,
@@ -37,7 +41,9 @@ export function CompareAnswerCard({
       <form action={formAction} className="flex flex-col gap-3">
         <input type="hidden" name="sourceConceptId" value={sourceConceptId} />
         <input type="hidden" name="targetConceptId" value={targetConceptId} />
-        <input type="hidden" name="prompt" value={prompt} />
+        <input type="hidden" name="relationshipId" value={relationshipId} />
+        <input type="hidden" name="promptId" value={promptId} />
+        <input type="hidden" name="category" value={category} />
         <input type="hidden" name="from" value={from} />
         <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Answer</p>
         <textarea

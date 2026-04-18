@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { compareInteractionSchema, compareSessionStartSchema } from "@/lib/auth/validation";
+import { COMPARE_INTERACTION_CATEGORIES, COMPARE_INTERACTION_LABELS } from "@/lib/compare/prompt";
+import { buildConceptRelationshipPairKey, orderConceptRelationshipPair } from "@/lib/compare/relationships";
 import { generateConceptComparisonQuestions } from "@/lib/llm/generate-concept-comparison-questions";
-import { type CompareInteractionState } from "@/lib/compare/session-state";
+import { type CompareInteractionState, type PersistedCompareGeneratedInteraction } from "@/lib/compare/session-state";
 import { gradeConceptComparison } from "@/lib/llm/grade-concept-comparison";
 import { type LlmCallFailureReason } from "@/lib/llm/result";
 import { assertCanUseLlm, LlmDailyLimitExceededError, logLlmUsage } from "@/lib/llm/usage-limit";
@@ -52,14 +54,115 @@ function mapCompareGenerationFailureReasonToErrorCode(
   return mapComparisonFailureReasonToErrorCode(reason);
 }
 
+async function persistCompareRelationshipSession(input: {
+  subjectId: string;
+  sourceConceptId: string;
+  targetConceptId: string;
+  rationale: string | null;
+  interactions: Array<{
+    category: PersistedCompareGeneratedInteraction["category"];
+    label: string;
+    question: string;
+  }>;
+}): Promise<{
+  relationshipId: string;
+  interactions: PersistedCompareGeneratedInteraction[];
+}> {
+  const [conceptAId, conceptBId] = orderConceptRelationshipPair(input.sourceConceptId, input.targetConceptId);
+  const pairKey = buildConceptRelationshipPairKey(input.sourceConceptId, input.targetConceptId);
+
+  return prisma.$transaction(async (tx) => {
+    const relationship = await tx.conceptRelationship.upsert({
+      where: {
+        pairKey,
+      },
+      create: {
+        subjectId: input.subjectId,
+        conceptAId,
+        conceptBId,
+        pairKey,
+        rationale: input.rationale,
+      },
+      update: {
+        subjectId: input.subjectId,
+        conceptAId,
+        conceptBId,
+        rationale: input.rationale,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const existingPrompts = await tx.conceptRelationshipPrompt.findMany({
+      where: {
+        relationshipId: relationship.id,
+      },
+      select: {
+        id: true,
+        category: true,
+        prompt: true,
+      },
+    });
+
+    const existingPromptByCategory = new Map(existingPrompts.map((prompt) => [prompt.category, prompt]));
+    const missingInteractions = input.interactions.filter((interaction) => !existingPromptByCategory.has(interaction.category));
+
+    const createdPrompts = await Promise.all(
+      missingInteractions.map((interaction) =>
+        tx.conceptRelationshipPrompt.upsert({
+          where: {
+            relationshipId_category: {
+              relationshipId: relationship.id,
+              category: interaction.category,
+            },
+          },
+          create: {
+            relationshipId: relationship.id,
+            category: interaction.category,
+            prompt: interaction.question,
+          },
+          update: {},
+          select: {
+            id: true,
+            category: true,
+            prompt: true,
+          },
+        }),
+      ),
+    );
+
+    const promptByCategory = new Map([...existingPrompts, ...createdPrompts].map((prompt) => [prompt.category, prompt]));
+
+    return {
+      relationshipId: relationship.id,
+      interactions: COMPARE_INTERACTION_CATEGORIES.map((category) => {
+        const prompt = promptByCategory.get(category);
+
+        if (!prompt) {
+          throw new Error(`Missing persisted compare prompt for category ${category}.`);
+        }
+
+        return {
+          promptId: prompt.id,
+          category,
+          label: COMPARE_INTERACTION_LABELS[category],
+          question: prompt.prompt,
+        };
+      }),
+    };
+  });
+}
+
 type StartCompareSessionResult =
   | {
       status: "success";
+      relationshipId: string;
       relatedConcept: {
         id: string;
         title: string;
       };
-      interactions: import("@/lib/compare/session-state").CompareGeneratedInteraction[];
+      interactions: PersistedCompareGeneratedInteraction[];
     }
   | {
       status: "no_match";
@@ -187,10 +290,31 @@ export async function startCompareSessionAction(input: { sourceConceptId: string
     };
   }
 
+  let persistedSession: {
+    relationshipId: string;
+    interactions: PersistedCompareGeneratedInteraction[];
+  };
+
+  try {
+    persistedSession = await persistCompareRelationshipSession({
+      subjectId: sourceConcept.nodeId,
+      sourceConceptId: sourceConcept.id,
+      targetConceptId: result.value.relatedConcept.id,
+      rationale: result.value.rationale,
+      interactions: result.value.interactions,
+    });
+  } catch {
+    return {
+      status: "error",
+      errorCode: "compare_save_failed",
+    };
+  }
+
   return {
     status: "success",
+    relationshipId: persistedSession.relationshipId,
     relatedConcept: result.value.relatedConcept,
-    interactions: result.value.interactions,
+    interactions: persistedSession.interactions,
   };
 }
 
@@ -207,7 +331,9 @@ export async function runCompareInteractionAction(
   const parsed = compareInteractionSchema.safeParse({
     sourceConceptId: formData.get("sourceConceptId"),
     targetConceptId: formData.get("targetConceptId"),
-    prompt: formData.get("prompt"),
+    relationshipId: formData.get("relationshipId"),
+    promptId: formData.get("promptId"),
+    category: formData.get("category"),
     answer: formData.get("answer") || undefined,
     from: formData.get("from") || undefined,
   });
@@ -258,6 +384,37 @@ export async function runCompareInteractionAction(
     return buildErrorState(previousState, "compare_save_failed", draftAnswer);
   }
 
+  const pairKey = buildConceptRelationshipPairKey(sourceConcept.id, targetConcept.id);
+
+  const relationship = await prisma.conceptRelationship.findUnique({
+    where: {
+      pairKey,
+    },
+    select: {
+      id: true,
+      prompts: {
+        where: {
+          id: parsed.data.promptId,
+        },
+        select: {
+          id: true,
+          category: true,
+          prompt: true,
+        },
+      },
+    },
+  });
+
+  if (!relationship || relationship.id !== parsed.data.relationshipId) {
+    return buildErrorState(previousState, "compare_save_failed", draftAnswer);
+  }
+
+  const persistedPrompt = relationship.prompts[0];
+
+  if (!persistedPrompt || persistedPrompt.category !== parsed.data.category) {
+    return buildErrorState(previousState, "compare_save_failed", draftAnswer);
+  }
+
   const trimmedAnswer = draftAnswer.trim();
 
   if (trimmedAnswer.length === 0) {
@@ -278,7 +435,7 @@ export async function runCompareInteractionAction(
     sourceConcept: sourceConcept.title,
     targetConcept: targetConcept.title,
     answer: trimmedAnswer,
-    prompt: parsed.data.prompt,
+    prompt: persistedPrompt.prompt,
     context: [
       {
         id: sourceConcept.node.id,
@@ -298,6 +455,30 @@ export async function runCompareInteractionAction(
     return buildErrorState(previousState, "compare_save_failed", trimmedAnswer);
   }
 
+  const answeredAt = new Date();
+
+  try {
+    await prisma.conceptRelationshipAttempt.create({
+      data: {
+        userId: session.user.id,
+        relationshipId: relationship.id,
+        promptId: persistedPrompt.id,
+        category: persistedPrompt.category,
+        prompt: persistedPrompt.prompt,
+        userAnswer: trimmedAnswer,
+        llmScore: result.value.score,
+        llmFeedback: result.value.feedback,
+        llmCorrection: result.value.correction,
+        answeredAt,
+      },
+      select: {
+        id: true,
+      },
+    });
+  } catch {
+    return buildErrorState(previousState, "compare_save_failed", trimmedAnswer);
+  }
+
   return {
     status: "submitted",
     draftAnswer: trimmedAnswer,
@@ -306,7 +487,7 @@ export async function runCompareInteractionAction(
       llmScore: result.value.score,
       llmFeedback: result.value.feedback,
       llmCorrection: result.value.correction,
-      answeredAtIso: new Date().toISOString(),
+      answeredAtIso: answeredAt.toISOString(),
     },
     errorCode: null,
   };

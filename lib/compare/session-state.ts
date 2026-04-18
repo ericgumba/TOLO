@@ -21,6 +21,10 @@ export type CompareGeneratedInteraction = {
   question: string;
 };
 
+export type PersistedCompareGeneratedInteraction = CompareGeneratedInteraction & {
+  promptId: string;
+};
+
 export type CompareInteractionState = {
   status: "idle" | "submitted" | "error";
   draftAnswer: string;

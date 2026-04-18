@@ -6,7 +6,10 @@ import { runCompareInteractionAction, startCompareSessionAction } from "@/app/ac
 import { CompareAnswerCard } from "@/app/components/compare/compare-answer-card";
 import { FeedbackCard } from "@/app/components/quiz/feedback-card";
 import { QuestionCard } from "@/app/components/quiz/question-card";
-import { type CompareGeneratedInteraction, initialCompareInteractionState } from "@/lib/compare/session-state";
+import {
+  type PersistedCompareGeneratedInteraction,
+  initialCompareInteractionState,
+} from "@/lib/compare/session-state";
 
 type CompareSessionProps = {
   sourceConceptId: string;
@@ -17,6 +20,9 @@ type CompareSessionProps = {
 function CompareSessionInner({
   sourceConceptId,
   targetConceptId,
+  relationshipId,
+  promptId,
+  category,
   prompt,
   label,
   from,
@@ -24,6 +30,9 @@ function CompareSessionInner({
 }: {
   sourceConceptId: string;
   targetConceptId: string;
+  relationshipId: string;
+  promptId: string;
+  category: PersistedCompareGeneratedInteraction["category"];
   prompt: string;
   label: string;
   from: string;
@@ -40,7 +49,9 @@ function CompareSessionInner({
           <CompareAnswerCard
             sourceConceptId={sourceConceptId}
             targetConceptId={targetConceptId}
-            prompt={prompt}
+            relationshipId={relationshipId}
+            promptId={promptId}
+            category={category}
             from={from}
             answer={state.submittedAnswer}
             editable={false}
@@ -53,7 +64,9 @@ function CompareSessionInner({
           <CompareAnswerCard
             sourceConceptId={sourceConceptId}
             targetConceptId={targetConceptId}
-            prompt={prompt}
+            relationshipId={relationshipId}
+            promptId={promptId}
+            category={category}
             from={from}
             draftAnswer={draftAnswer}
             editable
@@ -93,11 +106,12 @@ export function CompareSession({
       }
     | {
         status: "ready";
+        relationshipId: string;
         relatedConcept: {
           id: string;
           title: string;
         };
-        interactions: CompareGeneratedInteraction[];
+        interactions: PersistedCompareGeneratedInteraction[];
       }
     | {
         status: "no_match";
@@ -110,7 +124,7 @@ export function CompareSession({
   >({
     status: "loading",
   });
-  const [selectedCategory, setSelectedCategory] = useState<CompareGeneratedInteraction["category"] | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<PersistedCompareGeneratedInteraction["category"] | null>(null);
   const [sessionKey, setSessionKey] = useState(0);
 
   useEffect(() => {
@@ -126,6 +140,7 @@ export function CompareSession({
       if (result.status === "success") {
         setLoadState({
           status: "ready",
+          relationshipId: result.relationshipId,
           relatedConcept: result.relatedConcept,
           interactions: result.interactions,
         });
@@ -230,6 +245,9 @@ export function CompareSession({
         key={`${selectedInteraction.category}-${sessionKey}`}
         sourceConceptId={sourceConceptId}
         targetConceptId={loadState.relatedConcept.id}
+        relationshipId={loadState.relationshipId}
+        promptId={selectedInteraction.promptId}
+        category={selectedInteraction.category}
         prompt={selectedInteraction.question}
         label={selectedInteraction.label}
         from={from}

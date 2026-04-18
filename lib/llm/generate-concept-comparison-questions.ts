@@ -15,6 +15,7 @@ type CompareCandidate = {
 
 type GenerateConceptComparisonQuestionsResult = {
   relatedConcept: CompareCandidate;
+  rationale: string | null;
   interactions: CompareGeneratedInteraction[];
 };
 
@@ -161,6 +162,10 @@ export async function generateConceptComparisonQuestions(input: {
       ok: true,
       value: {
         relatedConcept: input.candidates[selectedIndex - 1]!,
+        rationale:
+          typeof response.value.rationale === "string" && collapseWhitespace(response.value.rationale).length > 0
+            ? collapseWhitespace(response.value.rationale)
+            : null,
         interactions: orderedInteractions as CompareGeneratedInteraction[],
       },
     };

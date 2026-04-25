@@ -1,5 +1,6 @@
 "use server";
 
+import { type Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
@@ -54,6 +55,136 @@ function mapCompareGenerationFailureReasonToErrorCode(
   return mapComparisonFailureReasonToErrorCode(reason);
 }
 
+function buildPersistedCompareInteractions(prompts: Array<{ id: string; category: PersistedCompareGeneratedInteraction["category"]; prompt: string }>) {
+  const promptByCategory = new Map(prompts.map((prompt) => [prompt.category, prompt]));
+
+  const interactions = COMPARE_INTERACTION_CATEGORIES.map((category) => {
+    const prompt = promptByCategory.get(category);
+
+    if (!prompt) {
+      return null;
+    }
+
+    return {
+      promptId: prompt.id,
+      category,
+      label: COMPARE_INTERACTION_LABELS[category],
+      question: prompt.prompt,
+    } satisfies PersistedCompareGeneratedInteraction;
+  });
+
+  if (interactions.some((interaction) => interaction === null)) {
+    return null;
+  }
+
+  return interactions as PersistedCompareGeneratedInteraction[];
+}
+
+async function loadExistingCompareRelationshipSession(input: {
+  sourceConceptId: string;
+  subjectId: string;
+}): Promise<{
+  relationshipId: string;
+  relatedConcept: {
+    id: string;
+    title: string;
+  };
+  interactions: PersistedCompareGeneratedInteraction[];
+} | null> {
+  const relationships = await prisma.conceptRelationship.findMany({
+    where: {
+      subjectId: input.subjectId,
+      OR: [
+        {
+          conceptAId: input.sourceConceptId,
+        },
+        {
+          conceptBId: input.sourceConceptId,
+        },
+      ],
+    },
+    orderBy: {
+      updatedAt: "desc",
+    },
+    select: {
+      id: true,
+      conceptA: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+      conceptB: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+      prompts: {
+        select: {
+          id: true,
+          category: true,
+          prompt: true,
+        },
+      },
+    },
+  });
+
+  for (const relationship of relationships) {
+    const interactions = buildPersistedCompareInteractions(relationship.prompts);
+
+    if (!interactions) {
+      continue;
+    }
+
+    const relatedConcept =
+      relationship.conceptA.id === input.sourceConceptId ? relationship.conceptB : relationship.conceptA;
+
+    return {
+      relationshipId: relationship.id,
+      relatedConcept,
+      interactions,
+    };
+  }
+
+  return null;
+}
+
+async function upsertCompareRelationship(
+  tx: Prisma.TransactionClient,
+  input: {
+    subjectId: string;
+    sourceConceptId: string;
+    targetConceptId: string;
+    rationale: string | null;
+  },
+) {
+  const [conceptAId, conceptBId] = orderConceptRelationshipPair(input.sourceConceptId, input.targetConceptId);
+  const pairKey = buildConceptRelationshipPairKey(input.sourceConceptId, input.targetConceptId);
+
+  return tx.conceptRelationship.upsert({
+    where: {
+      pairKey,
+    },
+    create: {
+      subjectId: input.subjectId,
+      conceptAId,
+      conceptBId,
+      pairKey,
+      rationale: input.rationale,
+    },
+    update: {
+      subjectId: input.subjectId,
+      conceptAId,
+      conceptBId,
+      rationale: input.rationale,
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
 async function persistCompareRelationshipSession(input: {
   subjectId: string;
   sourceConceptId: string;
@@ -68,31 +199,8 @@ async function persistCompareRelationshipSession(input: {
   relationshipId: string;
   interactions: PersistedCompareGeneratedInteraction[];
 }> {
-  const [conceptAId, conceptBId] = orderConceptRelationshipPair(input.sourceConceptId, input.targetConceptId);
-  const pairKey = buildConceptRelationshipPairKey(input.sourceConceptId, input.targetConceptId);
-
   return prisma.$transaction(async (tx) => {
-    const relationship = await tx.conceptRelationship.upsert({
-      where: {
-        pairKey,
-      },
-      create: {
-        subjectId: input.subjectId,
-        conceptAId,
-        conceptBId,
-        pairKey,
-        rationale: input.rationale,
-      },
-      update: {
-        subjectId: input.subjectId,
-        conceptAId,
-        conceptBId,
-        rationale: input.rationale,
-      },
-      select: {
-        id: true,
-      },
-    });
+    const relationship = await upsertCompareRelationship(tx, input);
 
     const existingPrompts = await tx.conceptRelationshipPrompt.findMany({
       where: {
@@ -106,23 +214,16 @@ async function persistCompareRelationshipSession(input: {
     });
 
     const existingPromptByCategory = new Map(existingPrompts.map((prompt) => [prompt.category, prompt]));
-    const missingInteractions = input.interactions.filter((interaction) => !existingPromptByCategory.has(interaction.category));
+    const interactionsToPersist = input.interactions.filter((interaction) => !existingPromptByCategory.has(interaction.category));
 
     const createdPrompts = await Promise.all(
-      missingInteractions.map((interaction) =>
-        tx.conceptRelationshipPrompt.upsert({
-          where: {
-            relationshipId_category: {
-              relationshipId: relationship.id,
-              category: interaction.category,
-            },
-          },
-          create: {
+      interactionsToPersist.map((interaction) =>
+        tx.conceptRelationshipPrompt.create({
+          data: {
             relationshipId: relationship.id,
             category: interaction.category,
             prompt: interaction.question,
           },
-          update: {},
           select: {
             id: true,
             category: true,
@@ -132,24 +233,68 @@ async function persistCompareRelationshipSession(input: {
       ),
     );
 
-    const promptByCategory = new Map([...existingPrompts, ...createdPrompts].map((prompt) => [prompt.category, prompt]));
+    const interactions = buildPersistedCompareInteractions([...existingPrompts, ...createdPrompts]);
+
+    if (!interactions) {
+      throw new Error("Missing persisted compare prompts after relationship persistence.");
+    }
 
     return {
       relationshipId: relationship.id,
-      interactions: COMPARE_INTERACTION_CATEGORIES.map((category) => {
-        const prompt = promptByCategory.get(category);
+      interactions,
+    };
+  });
+}
 
-        if (!prompt) {
-          throw new Error(`Missing persisted compare prompt for category ${category}.`);
-        }
+async function regenerateCompareRelationshipSession(input: {
+  subjectId: string;
+  sourceConceptId: string;
+  targetConceptId: string;
+  rationale: string | null;
+  interactions: Array<{
+    category: PersistedCompareGeneratedInteraction["category"];
+    label: string;
+    question: string;
+  }>;
+}): Promise<{
+  relationshipId: string;
+  interactions: PersistedCompareGeneratedInteraction[];
+}> {
+  return prisma.$transaction(async (tx) => {
+    const relationship = await upsertCompareRelationship(tx, input);
 
-        return {
-          promptId: prompt.id,
-          category,
-          label: COMPARE_INTERACTION_LABELS[category],
-          question: prompt.prompt,
-        };
-      }),
+    await tx.conceptRelationshipPrompt.deleteMany({
+      where: {
+        relationshipId: relationship.id,
+      },
+    });
+
+    const createdPrompts = await Promise.all(
+      input.interactions.map((interaction) =>
+        tx.conceptRelationshipPrompt.create({
+          data: {
+            relationshipId: relationship.id,
+            category: interaction.category,
+            prompt: interaction.question,
+          },
+          select: {
+            id: true,
+            category: true,
+            prompt: true,
+          },
+        }),
+      ),
+    );
+
+    const interactions = buildPersistedCompareInteractions(createdPrompts);
+
+    if (!interactions) {
+      throw new Error("Missing persisted compare prompts after compare regeneration.");
+    }
+
+    return {
+      relationshipId: relationship.id,
+      interactions,
     };
   });
 }
@@ -173,7 +318,11 @@ type StartCompareSessionResult =
       errorCode: "compare_timeout" | "compare_provider_http_error" | "compare_invalid_response" | "compare_network_error" | "llm_daily_limit_reached" | "compare_save_failed";
     };
 
-export async function startCompareSessionAction(input: { sourceConceptId: string }): Promise<StartCompareSessionResult> {
+export async function startCompareSessionAction(input: {
+  sourceConceptId: string;
+  targetConceptId?: string;
+  forceRegenerate?: boolean;
+}): Promise<StartCompareSessionResult> {
   const session = await auth();
 
   if (!session?.user?.id) {
@@ -239,6 +388,41 @@ export async function startCompareSessionAction(input: { sourceConceptId: string
     };
   }
 
+  const forceRegenerate = parsed.data.forceRegenerate === true;
+  const lockedTargetConcept = parsed.data.targetConceptId
+    ? candidates.find((candidate) => candidate.id === parsed.data.targetConceptId) ?? null
+    : null;
+
+  if (parsed.data.targetConceptId && !lockedTargetConcept) {
+    return {
+      status: "error",
+      errorCode: "compare_save_failed",
+    };
+  }
+
+  if (!forceRegenerate) {
+    try {
+      const existingSession = await loadExistingCompareRelationshipSession({
+        sourceConceptId: sourceConcept.id,
+        subjectId: sourceConcept.nodeId,
+      });
+
+      if (existingSession) {
+        return {
+          status: "success",
+          relationshipId: existingSession.relationshipId,
+          relatedConcept: existingSession.relatedConcept,
+          interactions: existingSession.interactions,
+        };
+      }
+    } catch {
+      return {
+        status: "error",
+        errorCode: "compare_save_failed",
+      };
+    }
+  }
+
   try {
     await assertCanUseLlm(session.user.id);
   } catch (error) {
@@ -265,7 +449,10 @@ export async function startCompareSessionAction(input: { sourceConceptId: string
         level: sourceConcept.node.level,
       },
     ],
+    fixedRelatedConcept: forceRegenerate ? lockedTargetConcept ?? undefined : undefined,
   });
+
+
 
   if (!result.ok) {
     return {
@@ -295,14 +482,23 @@ export async function startCompareSessionAction(input: { sourceConceptId: string
     interactions: PersistedCompareGeneratedInteraction[];
   };
 
+  
   try {
-    persistedSession = await persistCompareRelationshipSession({
-      subjectId: sourceConcept.nodeId,
-      sourceConceptId: sourceConcept.id,
-      targetConceptId: result.value.relatedConcept.id,
-      rationale: result.value.rationale,
-      interactions: result.value.interactions,
-    });
+    persistedSession = forceRegenerate
+      ? await regenerateCompareRelationshipSession({
+          subjectId: sourceConcept.nodeId,
+          sourceConceptId: sourceConcept.id,
+          targetConceptId: result.value.relatedConcept.id,
+          rationale: result.value.rationale,
+          interactions: result.value.interactions,
+        })
+      : await persistCompareRelationshipSession({
+          subjectId: sourceConcept.nodeId,
+          sourceConceptId: sourceConcept.id,
+          targetConceptId: result.value.relatedConcept.id,
+          rationale: result.value.rationale,
+          interactions: result.value.interactions,
+        });
   } catch {
     return {
       status: "error",

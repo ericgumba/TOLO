@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useCallback, useEffect, useState } from "react";
 
 import { runCompareInteractionAction, startCompareSessionAction } from "@/app/actions/compare";
 import { CompareAnswerCard } from "@/app/components/compare/compare-answer-card";
@@ -16,6 +16,22 @@ type CompareSessionProps = {
   sourceConceptTitle: string;
   from: string;
 };
+
+function mapStartErrorToMessage(
+  errorCode: "compare_timeout" | "compare_provider_http_error" | "compare_invalid_response" | "compare_network_error" | "llm_daily_limit_reached" | "compare_save_failed",
+) {
+  return errorCode === "llm_daily_limit_reached"
+    ? "Daily LLM limit reached."
+    : errorCode === "compare_timeout"
+      ? "Compare question generation timed out. Retry."
+      : errorCode === "compare_provider_http_error"
+        ? "The LLM provider returned an HTTP error while generating compare questions."
+        : errorCode === "compare_invalid_response"
+          ? "The compare question response was invalid. Retry."
+          : errorCode === "compare_network_error"
+            ? "A network error occurred while generating compare questions."
+            : "Could not start compare mode right now.";
+}
 
 function CompareSessionInner({
   sourceConceptId,
@@ -126,55 +142,90 @@ export function CompareSession({
   });
   const [selectedCategory, setSelectedCategory] = useState<PersistedCompareGeneratedInteraction["category"] | null>(null);
   const [sessionKey, setSessionKey] = useState(0);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regenerateError, setRegenerateError] = useState<string | null>(null);
+
+  const loadSession = useCallback(async (options?: {
+    forceRegenerate?: boolean;
+    targetConceptId?: string;
+    preserveCurrentSessionOnError?: boolean;
+  }) => {
+    const { forceRegenerate = false, targetConceptId, preserveCurrentSessionOnError = false } = options ?? {};
+
+    if (forceRegenerate) {
+      setIsRegenerating(true);
+      setRegenerateError(null);
+    } else {
+      setLoadState({
+        status: "loading",
+      });
+    }
+
+    const result = await startCompareSessionAction({
+      sourceConceptId,
+      targetConceptId,
+      forceRegenerate,
+    });
+
+    if (result.status === "success") {
+      setLoadState({
+        status: "ready",
+        relationshipId: result.relationshipId,
+        relatedConcept: result.relatedConcept,
+        interactions: result.interactions,
+      });
+      setSelectedCategory((currentCategory) =>
+        result.interactions.some((interaction) => interaction.category === currentCategory)
+          ? currentCategory
+          : result.interactions[0]?.category ?? null,
+      );
+      setSessionKey((current) => current + 1);
+      setRegenerateError(null);
+      setIsRegenerating(false);
+      return;
+    }
+
+    if (result.status === "no_match") {
+      if (preserveCurrentSessionOnError) {
+        setRegenerateError(result.message);
+        setIsRegenerating(false);
+        return;
+      }
+
+      setLoadState({
+        status: "no_match",
+        message: result.message,
+      });
+      setSelectedCategory(null);
+      setIsRegenerating(false);
+      return;
+    }
+
+    const message = mapStartErrorToMessage(result.errorCode);
+
+    if (preserveCurrentSessionOnError) {
+      setRegenerateError(message);
+      setIsRegenerating(false);
+      return;
+    }
+
+    setLoadState({
+      status: "error",
+      message,
+    });
+    setSelectedCategory(null);
+    setIsRegenerating(false);
+  }, [sourceConceptId]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      const result = await startCompareSessionAction({ sourceConceptId });
-
       if (cancelled) {
         return;
       }
 
-      if (result.status === "success") {
-        setLoadState({
-          status: "ready",
-          relationshipId: result.relationshipId,
-          relatedConcept: result.relatedConcept,
-          interactions: result.interactions,
-        });
-        setSelectedCategory(result.interactions[0]?.category ?? null);
-        return;
-      }
-
-      if (result.status === "no_match") {
-        setLoadState({
-          status: "no_match",
-          message: result.message,
-        });
-        setSelectedCategory(null);
-        return;
-      }
-
-      const message =
-        result.errorCode === "llm_daily_limit_reached"
-          ? "Daily LLM limit reached."
-          : result.errorCode === "compare_timeout"
-            ? "Compare question generation timed out. Retry."
-            : result.errorCode === "compare_provider_http_error"
-              ? "The LLM provider returned an HTTP error while generating compare questions."
-              : result.errorCode === "compare_invalid_response"
-                ? "The compare question response was invalid. Retry."
-                : result.errorCode === "compare_network_error"
-                  ? "A network error occurred while generating compare questions."
-                  : "Could not start compare mode right now.";
-
-      setLoadState({
-        status: "error",
-        message,
-      });
-      setSelectedCategory(null);
+      await loadSession();
     }
 
     void load();
@@ -182,7 +233,7 @@ export function CompareSession({
     return () => {
       cancelled = true;
     };
-  }, [sourceConceptId]);
+  }, [loadSession]);
 
   if (loadState.status === "loading") {
     return (
@@ -214,7 +265,30 @@ export function CompareSession({
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Interaction categories</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Interaction categories</p>
+          <button
+            type="button"
+            onClick={() =>
+              void loadSession({
+                forceRegenerate: true,
+                targetConceptId: loadState.relatedConcept.id,
+                preserveCurrentSessionOnError: true,
+              })
+            }
+            disabled={isRegenerating}
+            className={`rounded-md border px-3 py-2 text-sm ${
+              isRegenerating
+                ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                : "border-zinc-300 bg-white text-slate-900 hover:bg-zinc-50"
+            }`}
+          >
+            {isRegenerating ? "Regenerating..." : "Regenerate Questions"}
+          </button>
+        </div>
+        {regenerateError ? (
+          <p className="mt-3 text-sm text-red-700">{regenerateError}</p>
+        ) : null}
         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           {loadState.interactions.map((interaction) => {
             const isActive = selectedInteraction.category === interaction.category;

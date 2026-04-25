@@ -84,4 +84,6 @@ export const compareInteractionSchema = z.object({
 
 export const compareSessionStartSchema = z.object({
   sourceConceptId: z.cuid(),
+  targetConceptId: z.cuid().optional(),
+  forceRegenerate: z.boolean().optional(),
 });

@@ -19,12 +19,14 @@ const {
       findMany: vi.fn(),
     },
     conceptRelationship: {
+      findMany: vi.fn(),
       upsert: vi.fn(),
       findUnique: vi.fn(),
     },
     conceptRelationshipPrompt: {
       findMany: vi.fn(),
-      upsert: vi.fn(),
+      create: vi.fn(),
+      deleteMany: vi.fn(),
     },
     conceptRelationshipAttempt: {
       create: vi.fn(),
@@ -92,16 +94,17 @@ describe("compare actions", () => {
     });
 
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
+    prismaMock.conceptRelationship.findMany.mockResolvedValue([]);
     prismaMock.conceptRelationship.upsert.mockResolvedValue({ id: relationshipId });
     prismaMock.conceptRelationshipPrompt.findMany.mockResolvedValue([]);
-    prismaMock.conceptRelationshipPrompt.upsert.mockImplementation(async ({ where, create }: {
-      where: { relationshipId_category: { relationshipId: string; category: string } };
-      create: { prompt: string; category: string };
+    prismaMock.conceptRelationshipPrompt.create.mockImplementation(async ({ data }: {
+      data: { prompt: string; category: string };
     }) => ({
-      id: `${where.relationshipId_category.category.toLowerCase()}-prompt-id`.replace(/[^a-z-]/g, ""),
-      category: where.relationshipId_category.category,
-      prompt: create.prompt,
+      id: `${data.category.toLowerCase()}-prompt-id`.replace(/[^a-z-]/g, ""),
+      category: data.category,
+      prompt: data.prompt,
     }));
+    prismaMock.conceptRelationshipPrompt.deleteMany.mockResolvedValue({ count: 0 });
 
     assertCanUseLlmMock.mockResolvedValue(undefined);
     logLlmUsageMock.mockResolvedValue(undefined);
@@ -168,11 +171,11 @@ describe("compare actions", () => {
         }),
       }),
     );
-    expect(prismaMock.conceptRelationshipPrompt.upsert).toHaveBeenCalledTimes(6);
+    expect(prismaMock.conceptRelationshipPrompt.create).toHaveBeenCalledTimes(6);
     expect(logLlmUsageMock).toHaveBeenCalledWith(userId, "QUESTION_GENERATION");
   });
 
-  it("reuses persisted prompts for an existing concept pair instead of overwriting them", async () => {
+  it("reuses an existing compare relationship session instead of calling the LLM again", async () => {
     prismaMock.concept.findFirst.mockResolvedValue({
       id: sourceConceptId,
       title: "process",
@@ -184,32 +187,27 @@ describe("compare actions", () => {
       },
     });
     prismaMock.concept.findMany.mockResolvedValue([{ id: targetConceptId, title: "thread" }]);
-    prismaMock.conceptRelationshipPrompt.findMany.mockResolvedValue([
-      { id: "compare-prompt-id", category: "COMPARE", prompt: "Persisted compare prompt." },
-      { id: "part-whole-prompt-id", category: "PART_WHOLE", prompt: "Persisted part whole prompt." },
-      { id: "dependency-prompt-id", category: "DEPENDENCY", prompt: "Persisted dependency prompt." },
-      { id: "analogy-prompt-id", category: "ANALOGY", prompt: "Persisted analogy prompt." },
-      { id: "tradeoff-prompt-id", category: "TRADEOFF", prompt: "Persisted tradeoff prompt." },
-      { id: "mechanism-link-prompt-id", category: "MECHANISM_LINK", prompt: "Persisted mechanism link prompt." },
-    ]);
-    generateConceptComparisonQuestionsMock.mockResolvedValue({
-      ok: true,
-      value: {
-        relatedConcept: {
+    prismaMock.conceptRelationship.findMany.mockResolvedValue([
+      {
+        id: relationshipId,
+        conceptA: {
+          id: sourceConceptId,
+          title: "process",
+        },
+        conceptB: {
           id: targetConceptId,
           title: "thread",
         },
-        rationale: "Threads are a strong related concept because they execute inside processes.",
-        interactions: [
-          { category: "COMPARE", label: "Compare", question: "New compare prompt that should be ignored." },
-          { category: "PART_WHOLE", label: "Part vs whole", question: "New part whole prompt that should be ignored." },
-          { category: "DEPENDENCY", label: "Dependency / prerequisite", question: "New dependency prompt that should be ignored." },
-          { category: "ANALOGY", label: "Analogy", question: "New analogy prompt that should be ignored." },
-          { category: "TRADEOFF", label: "Tradeoff", question: "New tradeoff prompt that should be ignored." },
-          { category: "MECHANISM_LINK", label: "Mechanism link", question: "New mechanism link prompt that should be ignored." },
+        prompts: [
+          { id: "compare-prompt-id", category: "COMPARE", prompt: "Persisted compare prompt." },
+          { id: "part-whole-prompt-id", category: "PART_WHOLE", prompt: "Persisted part whole prompt." },
+          { id: "dependency-prompt-id", category: "DEPENDENCY", prompt: "Persisted dependency prompt." },
+          { id: "analogy-prompt-id", category: "ANALOGY", prompt: "Persisted analogy prompt." },
+          { id: "tradeoff-prompt-id", category: "TRADEOFF", prompt: "Persisted tradeoff prompt." },
+          { id: "mechanism-link-prompt-id", category: "MECHANISM_LINK", prompt: "Persisted mechanism link prompt." },
         ],
       },
-    });
+    ]);
 
     const result = await startCompareSessionAction({ sourceConceptId });
 
@@ -241,7 +239,113 @@ describe("compare actions", () => {
         question: "Persisted mechanism link prompt.",
       },
     ]);
-    expect(prismaMock.conceptRelationshipPrompt.upsert).not.toHaveBeenCalled();
+    expect(generateConceptComparisonQuestionsMock).not.toHaveBeenCalled();
+    expect(prismaMock.conceptRelationship.upsert).not.toHaveBeenCalled();
+    expect(prismaMock.conceptRelationshipPrompt.create).not.toHaveBeenCalled();
+    expect(logLlmUsageMock).not.toHaveBeenCalled();
+  });
+
+  it("regenerates questions for the current pair when forced", async () => {
+    prismaMock.concept.findFirst.mockResolvedValue({
+      id: sourceConceptId,
+      title: "process",
+      nodeId: subjectId,
+      node: {
+        id: subjectId,
+        title: "Operating Systems",
+        level: "SUBJECT",
+      },
+    });
+    prismaMock.concept.findMany.mockResolvedValue([{ id: targetConceptId, title: "thread" }]);
+    prismaMock.conceptRelationship.findMany.mockResolvedValue([
+      {
+        id: relationshipId,
+        conceptA: {
+          id: sourceConceptId,
+          title: "process",
+        },
+        conceptB: {
+          id: targetConceptId,
+          title: "thread",
+        },
+        prompts: [
+          { id: "compare-prompt-id", category: "COMPARE", prompt: "Persisted compare prompt." },
+          { id: "part-whole-prompt-id", category: "PART_WHOLE", prompt: "Persisted part whole prompt." },
+          { id: "dependency-prompt-id", category: "DEPENDENCY", prompt: "Persisted dependency prompt." },
+          { id: "analogy-prompt-id", category: "ANALOGY", prompt: "Persisted analogy prompt." },
+          { id: "tradeoff-prompt-id", category: "TRADEOFF", prompt: "Persisted tradeoff prompt." },
+          { id: "mechanism-link-prompt-id", category: "MECHANISM_LINK", prompt: "Persisted mechanism link prompt." },
+        ],
+      },
+    ]);
+    prismaMock.conceptRelationshipPrompt.findMany.mockResolvedValue([
+      { id: "compare-prompt-id", category: "COMPARE", prompt: "Persisted compare prompt." },
+      { id: "part-whole-prompt-id", category: "PART_WHOLE", prompt: "Persisted part whole prompt." },
+      { id: "dependency-prompt-id", category: "DEPENDENCY", prompt: "Persisted dependency prompt." },
+      { id: "analogy-prompt-id", category: "ANALOGY", prompt: "Persisted analogy prompt." },
+      { id: "tradeoff-prompt-id", category: "TRADEOFF", prompt: "Persisted tradeoff prompt." },
+      { id: "mechanism-link-prompt-id", category: "MECHANISM_LINK", prompt: "Persisted mechanism link prompt." },
+    ]);
+    prismaMock.conceptRelationshipPrompt.create.mockImplementation(async ({ data }: {
+      data: { prompt: string; category: string };
+    }) => ({
+      id: `${data.category.toLowerCase()}-prompt-id`.replace(/[^a-z-]/g, ""),
+      category: data.category,
+      prompt: data.prompt,
+    }));
+    generateConceptComparisonQuestionsMock.mockResolvedValue({
+      ok: true,
+      value: {
+        relatedConcept: {
+          id: targetConceptId,
+          title: "thread",
+        },
+        rationale: "Threads are a strong related concept because they execute inside processes.",
+        interactions: [
+          { category: "COMPARE", label: "Compare", question: "New compare prompt." },
+          { category: "PART_WHOLE", label: "Part vs whole", question: "New part whole prompt." },
+          { category: "DEPENDENCY", label: "Dependency / prerequisite", question: "New dependency prompt." },
+          { category: "ANALOGY", label: "Analogy", question: "New analogy prompt." },
+          { category: "TRADEOFF", label: "Tradeoff", question: "New tradeoff prompt." },
+          { category: "MECHANISM_LINK", label: "Mechanism link", question: "New mechanism link prompt." },
+        ],
+      },
+    });
+
+    const result = await startCompareSessionAction({
+      sourceConceptId,
+      targetConceptId,
+      forceRegenerate: true,
+    });
+
+    expect(result.status).toBe("success");
+    if (result.status !== "success") {
+      throw new Error("Expected successful forced compare regeneration.");
+    }
+
+    expect(generateConceptComparisonQuestionsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceConcept: "process",
+        fixedRelatedConcept: {
+          id: targetConceptId,
+          title: "thread",
+        },
+      }),
+    );
+    expect(prismaMock.conceptRelationship.upsert).toHaveBeenCalled();
+    expect(prismaMock.conceptRelationshipPrompt.deleteMany).toHaveBeenCalledWith({
+      where: {
+        relationshipId,
+      },
+    });
+    expect(prismaMock.conceptRelationshipPrompt.create).toHaveBeenCalledTimes(6);
+    expect(result.interactions[0]).toEqual({
+      promptId: "compare-prompt-id",
+      category: "COMPARE",
+      label: "Compare",
+      question: "New compare prompt.",
+    });
+    expect(logLlmUsageMock).toHaveBeenCalledWith(userId, "QUESTION_GENERATION");
   });
 
   it("stores a compare attempt after successful grading", async () => {

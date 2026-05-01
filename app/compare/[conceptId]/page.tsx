@@ -1,7 +1,5 @@
 import { redirect } from "next/navigation";
 
-import { CompareSession } from "@/app/components/compare/compare-session";
-import { QuizHeader } from "@/app/components/quiz/quiz-header";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -29,14 +27,9 @@ export default async function ComparePage({ params, searchParams }: ComparePageP
       userId: session.user.id,
     },
     select: {
-      id: true,
-      title: true,
-      nodeId: true,
       node: {
         select: {
           id: true,
-          title: true,
-          level: true,
         },
       },
     },
@@ -47,15 +40,5 @@ export default async function ComparePage({ params, searchParams }: ComparePageP
   }
 
   const from = query.from?.startsWith("/") ? query.from : `/subject/${concept.node.id}`;
-
-  return (
-    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-6 py-10">
-      <QuizHeader from={from} nodeTitle={concept.node.title} nodeLevel={concept.node.level} title="Compare" />
-      <CompareSession
-        sourceConceptId={concept.id}
-        sourceConceptTitle={concept.title}
-        from={from}
-      />
-    </main>
-  );
+  redirect(from);
 }

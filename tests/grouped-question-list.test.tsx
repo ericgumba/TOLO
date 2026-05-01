@@ -5,7 +5,6 @@ vi.mock("@/app/components/concept-list-item", () => ({
   ConceptListItem: ({
     conceptId,
     conceptScore,
-    canCompare,
     generatedQuestionScores,
     tags,
     lastAnsweredAt,
@@ -13,7 +12,6 @@ vi.mock("@/app/components/concept-list-item", () => ({
   }: {
     conceptId: string;
     conceptScore: number | null;
-    canCompare: boolean;
     generatedQuestionScores?: Array<{ id: string; category: string; body: string; score: number | null }>;
     tags?: string[];
     lastAnsweredAt: Date | null;
@@ -22,7 +20,6 @@ vi.mock("@/app/components/concept-list-item", () => ({
     <div
       data-concept-id={conceptId}
       data-concept-score={conceptScore === null ? "none" : String(conceptScore)}
-      data-can-compare={canCompare ? "yes" : "no"}
       data-generated-question-scores={
         generatedQuestionScores?.map((question) => `${question.id}:${question.category}:${question.score === null ? "none" : question.score}`).join(" | ") ?? ""
       }
@@ -66,7 +63,6 @@ describe("GroupedConceptList", () => {
     expect(html).toContain('data-last-answered-at="2026-04-03T08:30:00.000Z"');
     expect(html).toContain('data-next-review-at="2026-04-10T10:00:00.000Z"');
     expect(html).toContain('data-concept-score="84"');
-    expect(html).toContain('data-can-compare="no"');
     expect(html).toContain('data-tags="Scheduling"');
   });
 
@@ -99,7 +95,6 @@ describe("GroupedConceptList", () => {
 
     expect(html).toContain('data-last-answered-at="never"');
     expect(html).toContain('data-concept-score="none"');
-    expect(html).toContain('data-can-compare="no"');
   });
 
   it("passes generated question scores through to the concept list item", () => {
@@ -136,7 +131,7 @@ describe("GroupedConceptList", () => {
     expect(html).toContain('data-generated-question-scores="generated-3:TEACH:71 | generated-1:EXPLAIN:88 | generated-2:APPLY:none"');
   });
 
-  it("enables compare when more than one concept is present in the current list", () => {
+  it("groups multiple concepts without passing compare state", () => {
     const html = renderToStaticMarkup(
       <GroupedConceptList
         concepts={[
@@ -177,6 +172,7 @@ describe("GroupedConceptList", () => {
       />,
     );
 
-    expect(html.match(/data-can-compare="yes"/g)).toHaveLength(2);
+    expect(html.match(/data-concept-id=/g)).toHaveLength(2);
+    expect(html).not.toContain("data-can-compare");
   });
 });

@@ -25,8 +25,6 @@ type ConceptListItemProps = {
   conceptId: string;
   conceptTitle: string;
   conceptPath?: string;
-  canCompare: boolean;
-  compareHref?: string;
   conceptScore: number | null;
   tags?: string[];
   generatedQuestionScores?: Array<{
@@ -45,8 +43,6 @@ export function ConceptListItem({
   conceptId,
   conceptTitle,
   conceptPath,
-  canCompare,
-  compareHref,
   conceptScore,
   tags = [],
   generatedQuestionScores = [],
@@ -89,25 +85,6 @@ export function ConceptListItem({
         </Link>
 
         <div className="flex shrink-0 items-start gap-2">
-          {canCompare && compareHref ? (
-            <Link
-              href={compareHref}
-              title="Compare this concept with another concept from the same subject."
-              className="rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-zinc-100"
-            >
-              Compare
-            </Link>
-          ) : (
-            <button
-              type="button"
-              disabled
-              title="Add at least one more concept to enable compare."
-              className="cursor-not-allowed rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-400"
-            >
-              Compare
-            </button>
-          )}
-
           <details className="relative">
             <summary className="list-none cursor-pointer rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-zinc-100">
               Settings

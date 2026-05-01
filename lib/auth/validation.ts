@@ -71,19 +71,3 @@ export const quizInteractionSchema = z.object({
   from: z.string().startsWith("/").optional(),
   mode: z.string().trim().min(1).max(32).optional(),
 });
-
-export const compareInteractionSchema = z.object({
-  sourceConceptId: z.cuid(),
-  targetConceptId: z.cuid(),
-  relationshipId: z.cuid(),
-  promptId: z.cuid(),
-  category: z.enum(["COMPARE", "PART_WHOLE", "DEPENDENCY", "ANALOGY", "TRADEOFF", "MECHANISM_LINK"]),
-  answer: z.string().trim().min(1).max(4000),
-  from: z.string().startsWith("/").optional(),
-});
-
-export const compareSessionStartSchema = z.object({
-  sourceConceptId: z.cuid(),
-  targetConceptId: z.cuid().optional(),
-  forceRegenerate: z.boolean().optional(),
-});

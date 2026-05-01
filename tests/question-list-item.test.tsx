@@ -15,8 +15,6 @@ describe("ConceptListItem", () => {
       <ConceptListItem
         conceptId="question-1"
         conceptTitle="TCP"
-        canCompare
-        compareHref="/compare/question-1?from=%2Fsubject%2Fsubject-1"
         conceptScore={91}
         tags={["Networking", "Transport"]}
         generatedQuestionScores={[
@@ -34,8 +32,8 @@ describe("ConceptListItem", () => {
     );
 
     expect(html).toContain(">TCP<");
-    expect(html).toContain(">Compare<");
-    expect(html).toContain('href="/compare/question-1?from=%2Fsubject%2Fsubject-1"');
+    expect(html).not.toContain(">Compare<");
+    expect(html).not.toContain('href="/compare/question-1?from=%2Fsubject%2Fsubject-1"');
     expect(html).toContain(">Networking<");
     expect(html).toContain(">Transport<");
     expect(html).toContain(">Add Tag<");
@@ -68,8 +66,6 @@ describe("ConceptListItem", () => {
       <ConceptListItem
         conceptId="question-1"
         conceptTitle="TCP"
-        canCompare={false}
-        compareHref={undefined}
         conceptScore={null}
         tags={[]}
         generatedQuestionScores={[
@@ -85,8 +81,7 @@ describe("ConceptListItem", () => {
 
     expect(html).not.toContain(">Define<");
     expect(html).not.toContain(">Explain<");
-    expect(html).toContain(">Compare<");
-    expect(html).toContain("disabled");
+    expect(html).not.toContain(">Compare<");
     expect(html).not.toContain("/quiz/generated/generated-1");
     expect(html).not.toContain("Define TCP in your own words.");
   });

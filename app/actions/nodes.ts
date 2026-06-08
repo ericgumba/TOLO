@@ -1,6 +1,6 @@
 "use server";
 
-import { NodeLevel, SubscriptionStatus } from "@prisma/client";
+import { SubscriptionStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -73,7 +73,7 @@ export async function createNodeAction(formData: FormData) {
     parentNode
       ? {
           id: parentNode.id,
-          level: parentNode.level as NodeLevel,
+          level: parentNode.level,
         }
       : null,
     counts,
@@ -88,7 +88,7 @@ export async function createNodeAction(formData: FormData) {
       userId,
       parentId: parentNode?.id ?? null,
       title: parsed.data.title,
-      level: childLevel as NodeLevel,
+      level: childLevel,
     },
   });
 

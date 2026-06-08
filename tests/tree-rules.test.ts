@@ -13,8 +13,12 @@ describe("tree rules", () => {
   it("allows only top-level subjects", () => {
     expect(isAllowedChildLevel(null, NODE_LEVEL.SUBJECT)).toBe(true);
     expect(isAllowedChildLevel(NODE_LEVEL.SUBJECT, NODE_LEVEL.SUBJECT)).toBe(false);
+    expect(isAllowedChildLevel(NODE_LEVEL.TOPIC, NODE_LEVEL.SUBJECT)).toBe(false);
+    expect(isAllowedChildLevel(NODE_LEVEL.SUBTOPIC, NODE_LEVEL.SUBJECT)).toBe(false);
     expect(resolveChildLevel(null)).toBe(NODE_LEVEL.SUBJECT);
     expect(resolveChildLevel(NODE_LEVEL.SUBJECT)).toBeNull();
+    expect(resolveChildLevel(NODE_LEVEL.TOPIC)).toBeNull();
+    expect(resolveChildLevel(NODE_LEVEL.SUBTOPIC)).toBeNull();
   });
 
   it("lets paid users create subjects and rejects nested nodes", () => {

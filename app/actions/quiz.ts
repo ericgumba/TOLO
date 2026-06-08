@@ -135,150 +135,175 @@ async function loadQuizState(
   questionId: string,
   questionKind: QuizQuestionKind,
 ): Promise<LoadedQuizState | null> {
-  const prompt =
-    questionKind === "main"
-      ? await prisma.concept.findFirst({
-          where: {
-            id: questionId,
-            userId,
-          },
-          select: {
-            id: true,
-            title: true,
-            nodeId: true,
-            node: {
-              select: {
-                parentId: true,
-                id: true,
-                title: true,
-                level: true,
-              },
-            },
-            generatedQuestions: {
-              select: {
-                id: true,
-                category: true,
-                body: true,
-              },
-            },
-          },
-        })
-      : await prisma.generatedQuestion.findFirst({
-          where: {
-            id: questionId,
-            concept: {
-              userId,
-            },
-          },
-          select: {
-            id: true,
-            body: true,
-            concept: {
-              select: {
-                id: true,
-                nodeId: true,
-                node: {
-                  select: {
-                    parentId: true,
-                    id: true,
-                    title: true,
-                    level: true,
-                  },
-                },
-              },
-            },
-          },
-        });
+  async function buildQuestionContext(input: {
+    node: {
+      parentId: string | null;
+      id: string;
+      title: string;
+      level: "SUBJECT" | "TOPIC" | "SUBTOPIC";
+    };
+    nodeId: string;
+  }): Promise<{
+    context: QuestionContextNode[];
+    existingConceptTitles: string[];
+  }> {
+    const context: QuestionContextNode[] = [];
+    let currentParentId = input.node.parentId;
 
-  if (!prompt) {
-    return null;
+    while (currentParentId) {
+      const parentNode = await prisma.node.findFirst({
+        where: {
+          id: currentParentId,
+          userId,
+        },
+        select: {
+          id: true,
+          title: true,
+          level: true,
+          parentId: true,
+        },
+      });
+
+      if (!parentNode) {
+        break;
+      }
+
+      context.unshift({
+        id: parentNode.id,
+        title: parentNode.title,
+        level: parentNode.level,
+      });
+
+      currentParentId = parentNode.parentId;
+    }
+
+    context.push({
+      id: input.node.id,
+      title: input.node.title,
+      level: input.node.level,
+    });
+
+    const existingConcepts = await prisma.concept.findMany({
+      where: {
+        userId,
+        nodeId: input.nodeId,
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+      select: {
+        title: true,
+      },
+    });
+
+    return {
+      context,
+      existingConceptTitles: existingConcepts.map((item) => item.title),
+    };
   }
 
-  const context: QuestionContextNode[] = [];
-  const questionNode =
-    questionKind === "main"
-      ? prompt.node
-      : prompt.concept.node;
-  const questionNodeId =
-    questionKind === "main"
-      ? prompt.nodeId
-      : prompt.concept.nodeId;
-  const mainQuestionId =
-    questionKind === "main"
-      ? prompt.id
-      : prompt.concept.id;
-  let currentParentId = questionNode.parentId;
-
-  while (currentParentId) {
-    const parentNode = await prisma.node.findFirst({
+  if (questionKind === "main") {
+    const prompt = await prisma.concept.findFirst({
       where: {
-        id: currentParentId,
+        id: questionId,
         userId,
       },
       select: {
         id: true,
         title: true,
-        level: true,
-        parentId: true,
+        nodeId: true,
+        node: {
+          select: {
+            parentId: true,
+            id: true,
+            title: true,
+            level: true,
+          },
+        },
+        generatedQuestions: {
+          select: {
+            id: true,
+            category: true,
+            body: true,
+          },
+        },
       },
     });
 
-    if (!parentNode) {
-      break;
+    if (!prompt) {
+      return null;
     }
 
-    context.unshift({
-      id: parentNode.id,
-      title: parentNode.title,
-      level: parentNode.level,
+    const { context, existingConceptTitles } = await buildQuestionContext({
+      node: prompt.node,
+      nodeId: prompt.nodeId,
     });
 
-    currentParentId = parentNode.parentId;
+    return {
+      questionKind,
+      mainQuestionId: prompt.id,
+      quizPath: `/quiz/${prompt.id}`,
+      prompt: {
+        id: prompt.id,
+        body: prompt.title,
+        nodeId: prompt.nodeId,
+        node: prompt.node,
+      },
+      context,
+      existingConceptTitles,
+      generatedQuestions: sortGeneratedQuestionsByCategory(prompt.generatedQuestions),
+    };
   }
 
-  context.push({
-    id: questionNode.id,
-    title: questionNode.title,
-    level: questionNode.level,
-  });
-
-  const existingConcepts = await prisma.concept.findMany({
+  const prompt = await prisma.generatedQuestion.findFirst({
     where: {
-      userId,
-      nodeId: questionNodeId,
-    },
-    orderBy: {
-      createdAt: "asc",
+      id: questionId,
+      concept: {
+        userId,
+      },
     },
     select: {
-      title: true,
+      id: true,
+      body: true,
+      concept: {
+        select: {
+          id: true,
+          nodeId: true,
+          node: {
+            select: {
+              parentId: true,
+              id: true,
+              title: true,
+              level: true,
+            },
+          },
+        },
+      },
     },
+  });
+
+  if (!prompt) {
+    return null;
+  }
+
+  const { context, existingConceptTitles } = await buildQuestionContext({
+    node: prompt.concept.node,
+    nodeId: prompt.concept.nodeId,
   });
 
   return {
     questionKind,
-    mainQuestionId,
-    quizPath: questionKind === "main" ? `/quiz/${prompt.id}` : `/quiz/generated/${prompt.id}`,
-    prompt:
-      questionKind === "main"
-        ? {
-            id: prompt.id,
-            body: prompt.title,
-            nodeId: prompt.nodeId,
-            node: prompt.node,
-          }
-        : {
-            id: prompt.id,
-            body: prompt.body,
-            nodeId: prompt.concept.nodeId,
-            node: prompt.concept.node,
-          },
+    mainQuestionId: prompt.concept.id,
+    quizPath: `/quiz/generated/${prompt.id}`,
+    prompt: {
+      id: prompt.id,
+      body: prompt.body,
+      nodeId: prompt.concept.nodeId,
+      node: prompt.concept.node,
+    },
     context,
-    existingConceptTitles: existingConcepts.map((item) => item.title),
-    generatedQuestions:
-      questionKind === "main"
-        ? sortGeneratedQuestionsByCategory(prompt.generatedQuestions)
-        : [],
+    existingConceptTitles,
+    generatedQuestions: [],
   };
 }
 

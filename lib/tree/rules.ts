@@ -1,15 +1,19 @@
+import { NodeLevel as PrismaNodeLevel, SubscriptionStatus as PrismaSubscriptionStatus } from "@prisma/client";
+
 export const NODE_LEVEL = {
   SUBJECT: "SUBJECT",
+  TOPIC: "TOPIC",
+  SUBTOPIC: "SUBTOPIC",
 } as const;
 
-export type NodeLevel = (typeof NODE_LEVEL)[keyof typeof NODE_LEVEL];
+export type NodeLevel = PrismaNodeLevel;
 
 export const SUBSCRIPTION = {
   FREE: "FREE",
   PAID: "PAID",
 } as const;
 
-export type Subscription = (typeof SUBSCRIPTION)[keyof typeof SUBSCRIPTION];
+export type Subscription = PrismaSubscriptionStatus;
 
 export type ParentNodeForCreate = {
   id: string;
